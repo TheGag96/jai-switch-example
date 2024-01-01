@@ -6,13 +6,14 @@
 #import "Sort";
 #import "String";
 
-PROJECT_NAME    :: "jai-pi";
-OPTIMIZED_BUILD :: false;
+PROJECT_NAME     :: "jai-pi";
+OPTIMIZED_BUILD  :: false;
+BUILD_FOR_TARGET :: false;
 
 // @Note: I was having trouble building a cross compiling GCC for the Pi with the correct GlibC version, so without
 // having that, the easiest way to make a full executable is just to compile the Jai side on the host and link on the
 // target. If you have a working cross-compiler, this should do the trick if you fill out the constants below.
-LINK_EXECUTABLE_ON_THIS_MACHINE :: false;
+LINK_TARGET_EXECUTABLE_ON_THIS_MACHINE :: false;
 
 GCC_PATH :: "aarch64-linux-gnu-gcc"; // @TODO: find this path automatically
 AR_PATH  :: "aarch64-linux-gnu-ar";  // @TODO: find this path automatically
@@ -26,16 +27,43 @@ build :: () {
 
   target_options := get_build_options(w);
 
-  target_options.backend                             = .LLVM;
-  target_options.output_type                         = ifx LINK_EXECUTABLE_ON_THIS_MACHINE then .EXECUTABLE else .OBJECT_FILE;
-  target_options.backtrace_on_crash                  = .OFF;   // @TODO: Can we enable this?
-  target_options.output_executable_name              = PROJECT_NAME;
-  target_options.os_target                           = .LINUX;
-  target_options.cpu_target                          = .ARM64;
-  target_options.llvm_options.target_system_triple   = "aarch64-unknown-linux-gnu";
-  target_options.use_custom_link_command             = LINK_EXECUTABLE_ON_THIS_MACHINE;
-  target_options.llvm_options.output_bitcode         = true;
-  target_options.llvm_options.enable_split_modules   = false;
+  build_for_target := BUILD_FOR_TARGET;
+
+  for target_options.compile_time_command_line {
+    if it == "target" {
+      build_for_target = true;
+      break;
+    }
+  }
+
+  if build_for_target {
+    print("Building for the target hardware.");
+  }
+  else {
+    print("Building for this PC.");
+  }
+
+  compiler_add_library_search_directory("external/wiiuse/build/src");
+
+  link_target_executable_on_this_machine := build_for_target && LINK_TARGET_EXECUTABLE_ON_THIS_MACHINE;
+
+  target_options.output_executable_name                = PROJECT_NAME;
+
+  if build_for_target {
+    target_options.backend                             = .LLVM;
+    target_options.output_type                         = ifx link_target_executable_on_this_machine then .EXECUTABLE else .OBJECT_FILE;
+    target_options.output_flags                       |= .INCLUDE_SYSTEM_ENTRY_POINT_IN_NON_EXECUTABLE_OUTPUT;
+    target_options.backtrace_on_crash                  = .OFF;   // @TODO: Can we enable this?
+    target_options.os_target                           = .LINUX;
+    target_options.cpu_target                          = .ARM64;
+    target_options.llvm_options.target_system_triple   = "aarch64-unknown-linux-gnu";
+    target_options.use_custom_link_command             = link_target_executable_on_this_machine;
+    target_options.llvm_options.output_bitcode         = true;
+    target_options.llvm_options.enable_split_modules   = false;
+  }
+  else {
+    target_options.backend                             = .X64;
+  }
 
   #if OPTIMIZED_BUILD {
     set_optimization(*target_options, .OPTIMIZED);
@@ -59,7 +87,7 @@ build :: () {
   compiler_begin_intercept(w);
 
   add_build_file("src/main.jai", w);
-  if LINK_EXECUTABLE_ON_THIS_MACHINE  custom_link(w);
+  if link_target_executable_on_this_machine  custom_link(w);
   // hacky_inline_asm_removal(w);
 
   compiler_end_intercept(w);
