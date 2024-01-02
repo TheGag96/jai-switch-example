@@ -1,380 +1,49 @@
-diff --git a/modules/Basic/Print.jai b/modules/Basic/Print.jai
-index 3bf124d..4b90cae 100644
---- a/modules/Basic/Print.jai
-+++ b/modules/Basic/Print.jai
-@@ -1,6 +1,6 @@
- #scope_file
- 
--USE_SIMD   :: true;
-+USE_SIMD   :: CPU == .X64;
- SIMD_WIDTH :: 16;  // Bytes.
- 
- #scope_export
+diff --git a/modules/Bindings_Generator/module.jai b/modules/Bindings_Generator/module.jai
+index ff67739..c0ee261 100644
+--- a/modules/Bindings_Generator/module.jai
++++ b/modules/Bindings_Generator/module.jai
+@@ -145,6 +145,7 @@ RESERVED_NAMES :: string.[
+     "cast",
+     "context",
+     "false",
++    "interface",
+     "is_constant",
+     "null",
+     "remove",
 diff --git a/modules/Default_Allocator/module.jai b/modules/Default_Allocator/module.jai
-index 0a0490f..0e9b6b0 100644
+index 5ab83e9..644b61f 100644
 --- a/modules/Default_Allocator/module.jai
 +++ b/modules/Default_Allocator/module.jai
-@@ -3,6 +3,8 @@
-     ENABLE_VALIDATE_ARGS := true   // Enable validation of args to public entry points
- )();
+@@ -2048,7 +2048,7 @@
  
-+#if CPU == .X64 {
-+
- /*
-     This is a stripped-down version of rpmalloc, with its thread cache removed,
-     for simplicity. This impacts the performance somewhat (about 25% slower in
-@@ -150,16 +152,20 @@ CAPS_VERSION_STRING :: "stripped-down rpmalloc 1.4.4 intended as Default_Allocat
-             SYS_MADVISE :: SYSCALL_BASE + 75;
-         }
-         
--        #asm SYSCALL_SYSRET {
--            mov.q rcx: gpr === c,  0;
--            mov.q r11: gpr === 11, 0;
--            mov.q rax: gpr === a,  SYS_MADVISE;
--            mov.q rdi: gpr === di, addr;
--            mov.q rsi: gpr === si, len;
--            mov.d rdx: gpr === d,  advice;
--            syscall rcx, r11, rax, rdi, rsi, rdx;
--            mov.q result, rax;
-+        #if CPU == .X64 {
-+            #asm SYSCALL_SYSRET {
-+                mov.q rcx: gpr === c,  0;
-+                mov.q r11: gpr === 11, 0;
-+                mov.q rax: gpr === a,  SYS_MADVISE;
-+                mov.q rdi: gpr === di, addr;
-+                mov.q rsi: gpr === si, len;
-+                mov.d rdx: gpr === d,  advice;
-+                syscall rcx, r11, rax, rdi, rsi, rdx;
-+                mov.q result, rax;
-+            }
-         }
-+        // @TODO: Fill this in...!!
-+
-         return result;
-     }
- 
-@@ -170,15 +176,20 @@ CAPS_VERSION_STRING :: "stripped-down rpmalloc 1.4.4 intended as Default_Allocat
-         } else #if OS == .MACOS {
-             SYS_MUNMAP :: SYSCALL_BASE + 73;
-         }
--        #asm SYSCALL_SYSRET {
--            mov.q rcx: gpr === c,  0;
--            mov.q r11: gpr === 11, 0;
--            mov.q rax: gpr === a,  SYS_MUNMAP;
--            mov.q rdi: gpr === di, addr;
--            mov.q rsi: gpr === si, len;
--            syscall rcx, r11, rax, rdi, rsi;
--            mov.d result, rax;
-+
-+        #if CPU == .X64 {
-+            #asm SYSCALL_SYSRET {
-+                mov.q rcx: gpr === c,  0;
-+                mov.q r11: gpr === 11, 0;
-+                mov.q rax: gpr === a,  SYS_MUNMAP;
-+                mov.q rdi: gpr === di, addr;
-+                mov.q rsi: gpr === si, len;
-+                syscall rcx, r11, rax, rdi, rsi;
-+                mov.d result, rax;
-+            }
-         }
-+        // @TODO: Fill this in...!!
-+
-         return result;
-     }
- 
-@@ -190,19 +201,23 @@ CAPS_VERSION_STRING :: "stripped-down rpmalloc 1.4.4 intended as Default_Allocat
-             SYS_MMAP :: SYSCALL_BASE + 197;
-         }
-         
--        #asm SYSCALL_SYSRET {
--            mov.q rcx: gpr === c,  0;
--            mov.q r11: gpr === 11, 0;
--            mov.q rax: gpr === a,  SYS_MMAP;
--            mov.q rdi: gpr === di, addr;
--            mov.q rsi: gpr === si, len;
--            mov.d rdx: gpr === d,  prot;
--            mov.d r10: gpr === 10, flags;
--            mov.q r9:  gpr === 9,  offset;
--            mov.d r8:  gpr === 8,  fildes;
--            syscall rcx, r11, rax, rdi, rsi, rdx, r10, r9, r8;
--            mov.q result, rax;
-+        #if CPU == .X64 {
-+            #asm SYSCALL_SYSRET {
-+                mov.q rcx: gpr === c,  0;
-+                mov.q r11: gpr === 11, 0;
-+                mov.q rax: gpr === a,  SYS_MMAP;
-+                mov.q rdi: gpr === di, addr;
-+                mov.q rsi: gpr === si, len;
-+                mov.d rdx: gpr === d,  prot;
-+                mov.d r10: gpr === 10, flags;
-+                mov.q r9:  gpr === 9,  offset;
-+                mov.d r8:  gpr === 8,  fildes;
-+                syscall rcx, r11, rax, rdi, rsi, rdx, r10, r9, r8;
-+                mov.q result, rax;
-+            }
-         }
-+        // @TODO: Fill this in...!!
-+
-         if -4096 < result && result < 0
-             return null, -result;
-         else
-@@ -221,11 +236,17 @@ atomic_load ::   inline (src: *s32) -> s32 { return <<src; }
- atomic_load ::   inline (src: **void) -> *void { return <<src; }
- 
- atomic_store :: inline (dest: *s32, value: s32) {
--    #asm { lock_xchg.d value, [dest]; }
-+    #if CPU == .X64 {
-+        #asm { lock_xchg.d value, [dest]; }
-+    }
-+    // @TODO: Fill this in...!!
- }
- 
- atomic_store :: inline (dest: **void, value: *void) {
--    #asm { lock_xchg.q value, [dest]; }
-+    #if CPU == .X64 {
-+        #asm { lock_xchg.q value, [dest]; }
-+    }
-+    // @TODO: Fill this in...!!
- }
- 
- atomic_inc :: inline (dest: *s32) -> s32 {
-@@ -238,34 +259,46 @@ atomic_dec :: inline (dest: *s32) -> s32 {
- 
- atomic_add :: inline (dest: *s32, value: s32) -> s32 {
-     increment := value;
--    #asm { lock_xadd.d [dest], value; }
-+    #if CPU == .X64 {
-+        #asm { lock_xadd.d [dest], value; }
-+    }
-+    // @TODO: Fill this in...!!
-     return value + increment;
- }
- 
- atomic_exchange :: inline (dest: **void, value: *void) -> *void {
--    #asm { lock_xchg.q value, [dest]; }
-+    #if CPU == .X64 {
-+        #asm { lock_xchg.q value, [dest]; }
-+    }
-+    // @TODO: Fill this in...!!
-     return value;
- }
- 
- atomic_compare_and_swap :: inline (dest: *s32, new: s32, old: s32) -> bool {
-     result : bool = ---;
--    #asm {
--        old === a;
--        lock_cmpxchg.d old, [dest], new;
--        setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
--        mov result, t;
-+    #if CPU == .X64 {
-+        #asm {
-+            old === a;
-+            lock_cmpxchg.d old, [dest], new;
-+            setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
-+            mov result, t;
-+        }
-     }
-+    // @TODO: Fill this in...!!
-     return result;
- }
- 
- atomic_compare_and_swap :: inline (dest: **void, new: *void, old: *void) -> bool {
-     result : bool = ---;
--    #asm {
--        old === a;
--        lock_cmpxchg.q old, [dest], new;
--        setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
--        mov result, t;
-+    #if CPU == .X64 {
-+        #asm {
-+            old === a;
-+            lock_cmpxchg.q old, [dest], new;
-+            setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
-+            mov result, t;
-+        }
-     }
-+    // @TODO: Fill this in...!!
-     return result;
- }
- 
-@@ -658,7 +691,10 @@ span_double_link_list_remove :: (head: **Span, span: *Span) {
- ///
- 
- spin :: inline () {
--    #asm { pause; }
-+    #if CPU == .X64 {
-+        #asm { pause; }
-+    }
-+    // @TODO: Fill this in...!!
- }
- 
- 
-@@ -2000,3 +2036,45 @@ heap_statistics :: (heap: *Heap) -> Heap_Statistics {
- #if OS == .PS5 {
-     #load "ps5.jai";
- }
-+
-+} else { // Fall back to malloc-based allocator
-+
-+    allocator_proc :: (mode: Allocator_Mode, size: s64, old_size: s64, old_memory: *void, allocator_data: *void) -> *void {
-+        using Allocator_Mode;
-+
-+        if mode == {
-+            case STARTUP;
-+                /* Nothing */
-+                return null;
-+            case ALLOCATE;
-+                return c_malloc(cast(u64)size);
-+            case RESIZE;
-+                return c_realloc(old_memory, cast(u64)size);
-+            case FREE;
-+                c_free(old_memory);
-+                return null;
-+            case;
-+                context.assertion_failed(#location(), "DEFAULT ALLOCATOR DOES NOT SUPPORT FLAG");
-+            return null;
-+        }
-+    }
-+
-+    unsafe_reset :: () {
-+        // In the real Default_Allocator, new threads needed to reset some atomic state after calling fork for the Process module. This is not neccesary in the with this malloc implementation, so this procedure is stubbed.
-+    }
-+
-+    #scope_file
-+    // We are leaving c_malloc, c_free, c_realloc here for a little bit so that
-+    // people can use them as a fallback, but they will be removed before too long.
-+    //     -jblow, 15 January 2023
-+    c_malloc  :: (size : u64) -> *void                  #foreign crt "malloc";
-+    c_free    :: (memory: *void)                        #foreign crt "free";
-+    c_realloc :: (memory: *void, size : u64) -> *void   #foreign crt "realloc";
-+
-+    #if OS == .WINDOWS {
-+        crt      :: #system_library "msvcrt";  // For malloc, free on Windows
-+    } else #if (OS == .MACOS) || (OS == .LINUX) {
-+        crt      :: #system_library "libc";
-+    }
-+
-+}
-\ No newline at end of file
-diff --git a/modules/Preload.jai b/modules/Preload.jai
-index 23508c9..eab0da6 100644
---- a/modules/Preload.jai
-+++ b/modules/Preload.jai
-@@ -460,9 +460,11 @@ debug_break :: () #expand #no_context #no_debug {
-         // Break into the debugger, or stop the running process.
-         #if OS == .PS5 {
-             #asm { int 0x41; }
--        } else {
-+        } else #if CPU == .X64 {
-             #asm { int3; }
--        }
-+        } else #if CPU == .ARM64 {
-+            #bytes .[0x00, 0x00, 0x20, 0xD4]; // brk
-+        } else #assert false "Architecture not supported!";
+     #if OS == .WINDOWS {
+         crt      :: #system_library "msvcrt";  // For malloc, free on Windows
+-    } else #if (OS == .MACOS) || (OS == .LINUX) {
++    } else #if (OS == .MACOS) || (OS == .LINUX) || (OS == .NN_SWITCH) {
+         crt      :: #system_library "libc";
      }
  }
- 
-@@ -531,27 +533,32 @@ one_time_init :: (synch_value: *s32, to_insert: Code) #expand {
-         // The goal here is just to avoid the overhead of spamming the compare_and_swap.
-         if (<< synch_value) == 2  break;
- 
--        old := preload_compare_and_swap(synch_value, 0, 1);
--        if old == {
--          case 0;
--            #insert to_insert;
--
--            if preload_compare_and_swap(synch_value, 1, 2) != 1  debug_break();  // Should not happen!
--          case 1;
--            // Maybe some exponential fall offy thing here?
--            for 1..4 #asm { pause; pause; pause; pause; pause; }
--          case 2;
-+        // @TODO: Fill this in...!!
-+        #if CPU == .X64 {
-+            old := preload_compare_and_swap(synch_value, 0, 1);
-+            if old == {
-+              case 0;
-+                #insert to_insert;
-+
-+                if preload_compare_and_swap(synch_value, 1, 2) != 1  debug_break();  // Should not happen!
-+              case 1;
-+                // Maybe some exponential fall offy thing here?
-+                for 1..4 #asm { pause; pause; pause; pause; pause; }
-+              case 2;
-+            }
-         }
-     }
- }
- 
- // We don't want to take a dependency on Atomics, so here is a simple one that just does s32.
- preload_compare_and_swap :: (dest: *s32, old: s32, new: s32) -> (actual_old_value: s32) #no_context {
--    #asm {
--        old === a;
--        lock_cmpxchg.d old, [dest], new;
-+    // @TODO: Fill this in...!!
-+    #if CPU == .X64 {
-+        #asm {
-+            old === a;
-+            lock_cmpxchg.d old, [dest], new;
-+        }
-     }
- 
-     return old;
- }
--
 diff --git a/modules/Runtime_Support.jai b/modules/Runtime_Support.jai
-index 5e43090..c45157e 100644
+index 234d5fb..37154ca 100644
 --- a/modules/Runtime_Support.jai
 +++ b/modules/Runtime_Support.jai
-@@ -311,7 +311,16 @@ write_string :: (s: string, to_standard_error := false) #no_context #compiler {
-     // This runtime version of write_string is just about syncing the threads
-     // in your own program.
+@@ -271,7 +271,7 @@ write_string_unsynchronized :: (s: string, to_standard_error := false) #no_conte
+         written: u32;
+         handle := ifx to_standard_error then windows_standard_error else windows_standard_output;
+         status := WriteFile(handle, s.data, cast(u32) s.count, *written, null);
+-    } else #if OS_IS_UNIX {
++    } else #if OS_IS_UNIX || OS == .NN_SWITCH {
+         STDOUT_FILENO : s32 : 1;
+         STDERR_FILENO : s32 : 2;
+         size_t  :: u64;  // So other people, globally, can use this, since it's a common thing. @Cleanup: Probably should be elsewhere?
+@@ -632,6 +632,10 @@ set_initial_data :: (ts: *Temporary_Storage, count: s64, data: *u8) #no_context
+     }
  
--    one_time_init(*synch_initted, init_synchronization());
-+    #if CPU == .X64 {
-+        one_time_init(*synch_initted, init_synchronization());
-+    } else #if CPU == .ARM64 {
-+        // @Hack: This is not thread safe! If necessary, figure out how to make that the case.
-+        if synch_initted == 0 {
-+            init_synchronization();
-+            synch_initted = 2;
-+        }
-+    }
-+    else #assert false "Architecture not supported!";
+     write_string_mutex: _pthread_mutex_t;
++} else #if OS == .NN_SWITCH {
++    crt :: #system_library "libc";
++
++    write :: (fd: s32, buf: *void, count: u64) -> s64 #foreign crt;
+ }
  
-     #if OS == .NONE {
-         // Let the user fill this in, if desired.
-@@ -333,7 +342,16 @@ write_strings :: (strings: ..string, to_standard_error := false) #no_context #co
-     // This runtime version of write_strings is just about syncing the threads
-     // in your own program.
- 
--    one_time_init(*synch_initted, init_synchronization());
-+    #if CPU == .X64 {
-+        one_time_init(*synch_initted, init_synchronization());
-+    } else #if CPU == .ARM64 {
-+        // @Hack: This is not thread safe! If necessary, figure out how to make that the case.
-+        if synch_initted == 0 {
-+            init_synchronization();
-+            synch_initted = 2;
-+        }
-+    }
-+    else #assert false "Architecture not supported!";
- 
-     #if OS == .NONE {
-         // Let the user fill this in, if desired.
-diff --git a/modules/String/module.jai b/modules/String/module.jai
-index 974705a..df028e6 100644
---- a/modules/String/module.jai
-+++ b/modules/String/module.jai
-@@ -1524,7 +1524,7 @@ is_any :: (c: u8, chars:string) -> bool {
- 
- #scope_module
- 
--USE_SIMD   :: true;
-+USE_SIMD   :: CPU == .X64;
- SIMD_WIDTH :: 16;
- 
- Basic :: #import "Basic";
-diff --git a/modules/stb_sprintf/linux-arm64/stb_sprintf.a b/modules/stb_sprintf/linux-arm64/stb_sprintf.a
-new file mode 100644
-index 0000000..156defc
-Binary files /dev/null and b/modules/stb_sprintf/linux-arm64/stb_sprintf.a differ
+ synch_initted: s32 = 0;
