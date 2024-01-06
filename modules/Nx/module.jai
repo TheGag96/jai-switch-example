@@ -11,8 +11,27 @@ off_t    :: s64;
 
 __uintptr_t :: u64;
 
-_LOCK_T :: s32;
-_LOCK_RECURSIVE_T :: s32;
+_LOCK_T :: u32;
+_COND_T :: u32;
+
+_LOCK_RECURSIVE_T :: struct {
+  lock: _LOCK_T;
+  thread_tag: u32;
+  counter: u32;
+}
+
+in_addr_t :: u32;
+in_port_t :: u16;
+
+_iconv_t :: *void;
+
+__clock_t     :: u64;
+__time_t      :: s64;
+__clockid_t   :: u64;
+__daddr_t     :: s64;
+__timer_t     :: u64;
+__sa_family_t :: u8;
+__socklen_t   :: u32;
 
 BIT :: (x: $T) -> T {
   return (cast(T)1) << x;

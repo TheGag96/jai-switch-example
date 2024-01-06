@@ -46,8 +46,27 @@ generate_bindings :: () -> bool {
     output_filename  = "modules/Nx/autogen.jai";
     array_add(*system_library_paths, tprint("%/libnx/lib", devkitpro));
 
-    array_add(*extra_clang_arguments, "--target=aarch64-nintendo-switch-freestanding", "-march=armv8-a+crc+crypto", "-mtune=cortex-a57");
-    array_add(*source_files, tprint("%/libnx/include/switch.h", devkitpro));
+    array_add(*extra_clang_arguments, "-nostdinc", "--target=aarch64-nintendo-switch-freestanding", "-march=armv8-a+crc+crypto", "-mtune=cortex-a57");
+    array_add(
+      *source_files,
+      tprint("%/libnx/include/switch.h",                devkitpro),
+      tprint("%/libnx/include/netdb.h",                 devkitpro),
+      tprint("%/libnx/include/poll.h",                  devkitpro),
+      tprint("%/libnx/include/arpa/inet.h",             devkitpro),
+      tprint("%/libnx/include/netinet/in.h",            devkitpro),
+      tprint("%/libnx/include/netinet/tcp.h",           devkitpro),
+      tprint("%/libnx/include/netinet/udp.h",           devkitpro),
+      tprint("%/libnx/include/sys/filio.h",             devkitpro),
+      tprint("%/libnx/include/sys/ioccom.h",            devkitpro),
+      tprint("%/libnx/include/sys/ioctl.h",             devkitpro),
+      tprint("%/libnx/include/sys/_iovec.h",            devkitpro),
+      tprint("%/libnx/include/sys/poll.h",              devkitpro),
+      tprint("%/libnx/include/sys/_sockaddr_storage.h", devkitpro),
+      tprint("%/libnx/include/sys/socket.h",            devkitpro),
+      tprint("%/libnx/include/sys/sockio.h",            devkitpro),
+      tprint("%/libnx/include/sys/sysctl.h",            devkitpro),
+    );
+    array_add(*include_paths, tprint("%/libnx/include", devkitpro));
 
     // @TODO: Deal with the fact that the GCC version will change over time
     array_add(*system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include", devkitpro));
