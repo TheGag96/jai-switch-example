@@ -86,6 +86,22 @@ generate_bindings :: () -> bool {
   print("Generating libnx bindings...\n");
   result = result && generate_one_binding(options, output_filename);
 
+  {
+    using options;
+
+    array_add(*system_library_names, "libdeko3d");
+    output_filename  = "modules/Deko3d/autogen.jai";
+
+    array_reset_keeping_memory(*source_files);
+    array_add(*source_files, tprint("%/libnx/include/deko3d.h", devkitpro));
+
+    // will_print_bindings = () {
+    //     context.generator.libraries[0].name = "libdeko3d";
+    // };
+  }
+  print("Generating Deko3d bindings...\n");
+  result = result && generate_one_binding(options, output_filename);
+
   return result;
 }
 
