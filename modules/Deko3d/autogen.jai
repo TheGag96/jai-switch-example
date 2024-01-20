@@ -583,37 +583,11 @@ DkProvokingVertex :: enum u32 {
     Last  :: 1;
 }
 
-DkRasterizerState :: struct {
-    rasterizerEnable:        u32;
-    #place rasterizerEnable; /*bitfield 1*/ depthClampEnable:        u32;
-    #place rasterizerEnable; /*bitfield 2*/ fillRectangleEnable:     u32;
-    #place rasterizerEnable; /*bitfield 3*/ polygonModeFront:        DkPolygonMode;
-    #place rasterizerEnable; /*bitfield 5*/ polygonModeBack:         DkPolygonMode;
-    #place rasterizerEnable; /*bitfield 7*/ cullMode:                DkFace;
-    #place rasterizerEnable; /*bitfield 9*/ frontFace:               DkFrontFace;
-    #place rasterizerEnable; /*bitfield 10*/ provokingVertex:         DkProvokingVertex;
-    #place rasterizerEnable; /*bitfield 11*/ polygonSmoothEnableMask: u32;
-    #place rasterizerEnable; /*bitfield 14*/ depthBiasEnableMask:     u32;
-}
-
 DkCoverageModulation :: enum u32 {
     None  :: 0;
     Rgb   :: 1;
     Alpha :: 2;
     Rgba  :: 3;
-}
-
-DkMultisampleState :: struct {
-    mode:                  DkMsMode;
-    #place mode; /*bitfield 3*/ rasterizerMode:        DkMsMode;
-    #place mode; /*bitfield 6*/ alphaToCoverageEnable: u32;
-    #place mode; /*bitfield 7*/ alphaToCoverageDither: u32;
-    #place mode; /*bitfield 8*/ coverageToColorEnable: u32;
-    #place mode; /*bitfield 9*/ coverageToColorOutput: u32;
-    #place mode; /*bitfield 12*/ coverageModulation:    DkCoverageModulation;
-    #place mode; /*bitfield 14*/ _:                     u32;
-
-    sampleLocations:       [4] u32;
 }
 
 DkSampleLocation :: struct {
@@ -638,13 +612,6 @@ DkLogicOp :: enum u32 {
     OrInverted   :: 13;
     Nand         :: 14;
     Set          :: 15;
-}
-
-DkColorState :: struct {
-    blendEnableMask: u32;
-    #place blendEnableMask; /*bitfield 8*/ logicOp:         DkLogicOp;
-    #place blendEnableMask; /*bitfield 16*/ alphaCompareOp:  DkCompareOp;
-    #place blendEnableMask; /*bitfield 20*/ _:               u32;
 }
 
 DkColorMask :: enum u32 {
@@ -691,16 +658,6 @@ DkBlendFactor :: enum u32 {
     InvConstAlpha    :: 36;
 }
 
-DkBlendState :: struct {
-    colorBlendOp:        DkBlendOp;
-    #place colorBlendOp; /*bitfield 3*/ srcColorBlendFactor: DkBlendFactor;
-    #place colorBlendOp; /*bitfield 9*/ dstColorBlendFactor: DkBlendFactor;
-
-    #place colorBlendOp; /*bitfield 15*/ alphaBlendOp:        DkBlendOp;
-    #place colorBlendOp; /*bitfield 18*/ srcAlphaBlendFactor: DkBlendFactor;
-    #place colorBlendOp; /*bitfield 24*/ dstAlphaBlendFactor: DkBlendFactor;
-}
-
 DkStencilOp :: enum u32 {
     Keep     :: 1;
     Zero     :: 2;
@@ -710,24 +667,6 @@ DkStencilOp :: enum u32 {
     Invert   :: 6;
     IncrWrap :: 7;
     DecrWrap :: 8;
-}
-
-DkDepthStencilState :: struct {
-    depthTestEnable:         u32;
-    #place depthTestEnable; /*bitfield 1*/ depthWriteEnable:        u32;
-    #place depthTestEnable; /*bitfield 2*/ stencilTestEnable:       u32;
-    #place depthTestEnable; /*bitfield 3*/ _:                       u32;
-    #place depthTestEnable; /*bitfield 4*/ depthCompareOp:          DkCompareOp;
-    #place depthTestEnable; /*bitfield 8*/ __1:                     u32;
-
-    stencilFrontFailOp:      DkStencilOp;
-    #place stencilFrontFailOp; /*bitfield 4*/ stencilFrontPassOp:      DkStencilOp;
-    #place stencilFrontFailOp; /*bitfield 8*/ stencilFrontDepthFailOp: DkStencilOp;
-    #place stencilFrontFailOp; /*bitfield 12*/ stencilFrontCompareOp:   DkCompareOp;
-    #place stencilFrontFailOp; /*bitfield 16*/ stencilBackFailOp:       DkStencilOp;
-    #place stencilFrontFailOp; /*bitfield 20*/ stencilBackPassOp:       DkStencilOp;
-    #place stencilFrontFailOp; /*bitfield 24*/ stencilBackDepthFailOp:  DkStencilOp;
-    #place stencilFrontFailOp; /*bitfield 28*/ stencilBackCompareOp:    DkCompareOp;
 }
 
 DkTiledCacheOp :: enum u32 {
@@ -768,17 +707,6 @@ DkVtxAttribType :: enum u32 {
     Uscaled :: 5;
     Sscaled :: 6;
     Float   :: 7;
-}
-
-DkVtxAttribState :: struct {
-    bufferId: u32;
-    #place bufferId; /*bitfield 5*/ _:        u32;
-    #place bufferId; /*bitfield 6*/ isFixed:  u32;
-    #place bufferId; /*bitfield 7*/ offset:   u32;
-    #place bufferId; /*bitfield 21*/ size:     DkVtxAttribSize;
-    #place bufferId; /*bitfield 27*/ type:     DkVtxAttribType;
-    #place bufferId; /*bitfield 30*/ __1:      u32;
-    #place bufferId; /*bitfield 31*/ isBgra:   u32;
 }
 
 DkVtxBufferState :: struct {
@@ -1001,7 +929,84 @@ dkSwapchainAcquireImage :: (obj: DkSwapchain, imageSlot: *s32, fence: *DkFence) 
 dkSwapchainSetCrop :: (obj: DkSwapchain, left: s32, top: s32, right: s32, bottom: s32) -> void #foreign libdeko3d;
 dkSwapchainSetSwapInterval :: (obj: DkSwapchain, interval: u32) -> void #foreign libdeko3d;
 
-#scope_file
+#scope_module
 
-libnx :: #system_library,no_dll "libnx";
 libdeko3d :: #system_library,no_dll "libdeko3d";
+
+#scope_export
+
+#insert #run bitfields_struct(
+    "DkRasterizerState",
+    .{ "rasterizerEnable", #type u32, 1, .NONE },
+    .{ "depthClampEnable", #type u32, 1, .NONE },
+    .{ "fillRectangleEnable", #type u32, 1, .NONE },
+    .{ "polygonModeFront", #type DkPolygonMode, 2, .NONE },
+    .{ "polygonModeBack", #type DkPolygonMode, 2, .NONE },
+    .{ "cullMode", #type DkFace, 2, .NONE },
+    .{ "frontFace", #type DkFrontFace, 1, .NONE },
+    .{ "provokingVertex", #type DkProvokingVertex, 1, .NONE },
+    .{ "polygonSmoothEnableMask", #type u32, 3, .NONE },
+    .{ "depthBiasEnableMask", #type u32, 3, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "DkMultisampleState",
+    .{ "mode", #type DkMsMode, 3, .NONE },
+    .{ "rasterizerMode", #type DkMsMode, 3, .NONE },
+    .{ "alphaToCoverageEnable", #type u32, 1, .NONE },
+    .{ "alphaToCoverageDither", #type u32, 1, .NONE },
+    .{ "coverageToColorEnable", #type u32, 1, .NONE },
+    .{ "coverageToColorOutput", #type u32, 3, .NONE },
+    .{ "coverageModulation", #type DkCoverageModulation, 2, .NONE },
+    .{ "__padding_0", #type u32, 18, .NONE },
+    .{ "sampleLocations", #type [4] u32, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "DkColorState",
+    .{ "blendEnableMask", #type u32, 8, .NONE },
+    .{ "logicOp", #type DkLogicOp, 8, .NONE },
+    .{ "alphaCompareOp", #type DkCompareOp, 4, .NONE },
+    .{ "__padding_0", #type u32, 12, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "DkBlendState",
+    .{ "colorBlendOp", #type DkBlendOp, 3, .NONE },
+    .{ "srcColorBlendFactor", #type DkBlendFactor, 6, .NONE },
+    .{ "dstColorBlendFactor", #type DkBlendFactor, 6, .NONE },
+    .{ "alphaBlendOp", #type DkBlendOp, 3, .NONE },
+    .{ "srcAlphaBlendFactor", #type DkBlendFactor, 6, .NONE },
+    .{ "dstAlphaBlendFactor", #type DkBlendFactor, 6, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "DkDepthStencilState",
+    .{ "depthTestEnable", #type u32, 1, .NONE },
+    .{ "depthWriteEnable", #type u32, 1, .NONE },
+    .{ "stencilTestEnable", #type u32, 1, .NONE },
+    .{ "__padding_0", #type u32, 1, .NONE },
+    .{ "depthCompareOp", #type DkCompareOp, 4, .NONE },
+    .{ "__padding_1", #type u32, 24, .NONE },
+    .{ "stencilFrontFailOp", #type DkStencilOp, 4, .NONE },
+    .{ "stencilFrontPassOp", #type DkStencilOp, 4, .NONE },
+    .{ "stencilFrontDepthFailOp", #type DkStencilOp, 4, .NONE },
+    .{ "stencilFrontCompareOp", #type DkCompareOp, 4, .NONE },
+    .{ "stencilBackFailOp", #type DkStencilOp, 4, .NONE },
+    .{ "stencilBackPassOp", #type DkStencilOp, 4, .NONE },
+    .{ "stencilBackDepthFailOp", #type DkStencilOp, 4, .NONE },
+    .{ "stencilBackCompareOp", #type DkCompareOp, 4, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "DkVtxAttribState",
+    .{ "bufferId", #type u32, 5, .NONE },
+    .{ "__padding_0", #type u32, 1, .NONE },
+    .{ "isFixed", #type u32, 1, .NONE },
+    .{ "offset", #type u32, 14, .NONE },
+    .{ "size", #type DkVtxAttribSize, 6, .NONE },
+    .{ "type", #type DkVtxAttribType, 3, .NONE },
+    .{ "__padding_1", #type u32, 1, .NONE },
+    .{ "isBgra", #type u32, 1, .NONE },
+);
+

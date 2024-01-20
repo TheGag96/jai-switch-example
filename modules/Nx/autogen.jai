@@ -3219,15 +3219,6 @@ TimerType :: enum u32 {
     Repeating :: 1;
 }
 
-/// User-mode timer object.
-UTimer :: struct {
-    waitable:  Waitable;
-    type:      u8;
-    started:   bool;
-    next_tick: u64;
-    interval:  u64;
-}
-
 /**
 * @brief Creates a user-mode timer.
 * @param[out] t UTimer object.
@@ -3628,49 +3619,6 @@ HipcMetadata :: struct {
     send_pid:         u32;
     num_copy_handles: u32;
     num_move_handles: u32;
-}
-
-HipcHeader :: struct {
-    type:               u32;
-    #place type; /*bitfield 16*/ num_send_statics:   u32;
-    #place type; /*bitfield 20*/ num_send_buffers:   u32;
-    #place type; /*bitfield 24*/ num_recv_buffers:   u32;
-    #place type; /*bitfield 28*/ num_exch_buffers:   u32;
-    num_data_words:     u32;
-    #place num_data_words; /*bitfield 10*/ recv_static_mode:   u32;
-    #place num_data_words; /*bitfield 14*/ padding:            u32;
-    #place num_data_words; /*bitfield 20*/ recv_list_offset:   u32; // Unused.
-    #place num_data_words; /*bitfield 31*/ has_special_header: u32;
-}
-
-HipcSpecialHeader :: struct {
-    send_pid:         u32;
-    #place send_pid; /*bitfield 1*/ num_copy_handles: u32;
-    #place send_pid; /*bitfield 5*/ num_move_handles: u32;
-    #place send_pid; /*bitfield 9*/ padding:          u32;
-}
-
-HipcStaticDescriptor :: struct {
-    index:        u32;
-    #place index; /*bitfield 6*/ address_high: u32;
-    #place index; /*bitfield 12*/ address_mid:  u32;
-    #place index; /*bitfield 16*/ size:         u32;
-    address_low:  u32;
-}
-
-HipcBufferDescriptor :: struct {
-    size_low:     u32;
-    address_low:  u32;
-    mode:         u32;
-    #place mode; /*bitfield 2*/ address_high: u32;
-    #place mode; /*bitfield 24*/ size_high:    u32;
-    #place mode; /*bitfield 28*/ address_mid:  u32;
-}
-
-HipcRecvListEntry :: struct {
-    address_low:  u32;
-    address_high: u32;
-    #place address_high; /*bitfield 16*/ size:         u32;
 }
 
 HipcRequest :: struct {
@@ -7824,38 +7772,6 @@ SetSysTvSettings :: struct {
     contrast:          float; ///< Contrast.
 }
 
-SetSysModeLine :: struct {
-    pixel_clock:                            u16; ///< In 10 kHz units.
-    horizontal_active_pixels_lsb:           u8;
-    horizontal_blanking_pixels_lsb:         u8;
-    horizontal_blanking_pixels_msb:         u8;
-    #place horizontal_blanking_pixels_msb; /*bitfield 4*/ horizontal_active_pixels_msb:           u8;
-    vertical_active_lines_lsb:              u8;
-    vertical_blanking_lines_lsb:            u8;
-    vertical_blanking_lines_msb:            u8;
-    #place vertical_blanking_lines_msb; /*bitfield 4*/ vertical_active_lines_msb:              u8;
-    horizontal_sync_offset_pixels_lsb:      u8;
-    horizontal_sync_pulse_width_pixels_lsb: u8;
-    horizontal_sync_pulse_width_lines_lsb:  u8;
-    #place horizontal_sync_pulse_width_lines_lsb; /*bitfield 4*/ horizontal_sync_offset_lines_lsb:       u8;
-    vertical_sync_pulse_width_lines_msb:    u8;
-    #place vertical_sync_pulse_width_lines_msb; /*bitfield 2*/ vertical_sync_offset_lines_msb:         u8;
-    #place vertical_sync_pulse_width_lines_msb; /*bitfield 4*/ horizontal_sync_pulse_width_pixels_msb: u8;
-    #place vertical_sync_pulse_width_lines_msb; /*bitfield 6*/ horizontal_sync_offset_pixels_msb:      u8;
-    horizontal_image_size_mm_lsb:           u8;
-    vertical_image_size_mm_lsb:             u8;
-    vertical_image_size_mm_msb:             u8;
-    #place vertical_image_size_mm_msb; /*bitfield 4*/ horizontal_image_size_mm_msb:           u8;
-    horizontal_border_pixels:               u8;
-    vertical_border_lines:                  u8;
-    features_bitmap_0:                      u8;
-    #place features_bitmap_0; /*bitfield 1*/ features_bitmap_1:                      u8;
-    #place features_bitmap_0; /*bitfield 2*/ features_bitmap_2:                      u8;
-    #place features_bitmap_0; /*bitfield 3*/ features_bitmap_34:                     u8;
-    #place features_bitmap_0; /*bitfield 5*/ features_bitmap_56:                     u8;
-    #place features_bitmap_0; /*bitfield 7*/ interlaced:                             u8;
-}
-
 SetSysDataBlock :: struct {
     video:           struct {
         size:       u8;
@@ -7887,84 +7803,6 @@ SetSysDataBlock :: struct {
     } #align 1;
 
     padding:         [2] u8;
-}
-
-/// Edid
-SetSysEdid :: struct {
-    pattern:                         [8] u8; ///< Fixed pattern 00 FF FF FF FF FF FF 00.
-    pnp_id:                          u16; ///< Big-endian set of 3 5-bit values representing letters, 1 = A .. 26 = Z.
-    product_code:                    u16;
-    serial_number:                   u32;
-    manufacture_week:                u8;
-    manufacture_year:                u8;
-    edid_version:                    u8;
-    edid_revision:                   u8;
-    video_input_parameters_bitmap:   u8;
-    display_width:                   u8;
-    display_height:                  u8;
-    display_gamma:                   u8;
-    supported_features_bitmap:       u8;
-    chromaticity:                    struct {
-        green_y_lsb: u8;
-        #place green_y_lsb; /*bitfield 2*/ green_x_lsb: u8;
-        #place green_y_lsb; /*bitfield 4*/ red_y_lsb:   u8;
-        #place green_y_lsb; /*bitfield 6*/ red_x_lsb:   u8;
-        blue_lsb:    u8;
-        #place blue_lsb; /*bitfield 4*/ white_lsb:   u8;
-        red_x_msb:   u8;
-        red_y_msb:   u8;
-        green_x_msb: u8;
-        green_y_msb: u8;
-        blue_x_msb:  u8;
-        blue_y_msb:  u8;
-        white_x_msb: u8;
-        white_y_msb: u8;
-    };
-
-    timing_bitmap:                   [3] u8;
-    timing_info:                     [8] struct {
-        x_resolution:       u8; ///< Real value is (val + 31) * 8 pixels.
-        vertical_frequency: u8; ///< Real value is val + 60 Hz.
-        #place vertical_frequency; /*bitfield 6*/ aspect_ratio:       u8; ///< 0 = 16:10, 1 = 4:3, 2 = 5:4, 3 = 16:9.
-    };
-
-    timing_descriptor:               [2] SetSysModeLine;
-    display_descriptor_name:         struct {
-        display_descriptor_zero: u16;
-        padding1:                u8;
-        descriptor_type:         u8;
-        padding2:                u8;
-        name:                    [13] u8;
-    };
-
-    display_descriptor_range_limits: struct {
-        display_descriptor_zero:  u16;
-        padding1:                 u8;
-        descriptor_type:          u8;
-        range_limit_offsets:      u8;
-        vertical_field_rate_min:  u8;
-        vertical_field_rate_max:  u8;
-        horizontal_line_rate_min: u8;
-        horizontal_line_rate_max: u8;
-        pixel_clock_rate_max:     u8; ///< Rounded up to multiples of 10 MHz.
-        extended_timing_info:     u8;
-        padding:                  [7] u8;
-    };
-
-    extension_count:                 u8; ///< Always 1.
-    ///< Sum of all 128 bytes should equal 0 mod 256.
-    ///< Extended data.
-    checksum:                        u8;
-
-    extension_tag:                   u8; ///< Always 2 = CEA EDID timing extension.
-    revision:                        u8;
-    dtd_start:                       u8;
-    native_dtd_count:                u8;
-    #place native_dtd_count; /*bitfield 4*/ native_dtd_feature_bitmap:       u8;
-    data_block:                      SetSysDataBlock;
-    extended_timing_descriptor:      [5] SetSysModeLine;
-    padding:                         [5] u8;
-    extended_checksum:               u8; ///< Sum of 128 extended bytes should equal 0 mod 256.
 }
 
 /// DataDeletionSettings
@@ -13288,33 +13126,6 @@ AudioRendererVoicePlayState :: enum u32 {
     Paused  :: 2;
 }
 
-AudioRendererVoiceInfoIn :: struct {
-    id:               u32;
-    node_id:          u32;
-    is_new:           bool;
-    is_used:          bool;
-    state:            u16;
-    #place state; /*bitfield 8*/ sample_format:    u16;
-    sample_rate:      u32;
-    priority:         u32;
-    sorting_order:    u32;
-    channel_count:    u32;
-    pitch:            float;
-    volume:           float;
-    biquads:          [2] AudioRendererBiquadFilter;
-    wavebuf_count:    u32;
-    wavebuf_head:     s16;
-    _padding1:        u16;
-    _padding2:        u32;
-    extra_params_ptr: *void;
-    extra_params_sz:  u64;
-    dest_mix_id:      u32;
-    dest_splitter_id: u32;
-    wavebufs:         [4] AudioRendererWaveBuf;
-    channel_ids:      [6] u32;
-    _padding3:        [24] u8;
-}
-
 AudioRendererVoiceInfoOut :: struct {
     played_sample_count:   u64;
     num_wavebufs_consumed: u32;
@@ -13366,18 +13177,6 @@ AudioRendererCircularBufferSinkInfoIn :: struct {
     sample_format:    PcmFormat;
     inputs:           [6] u8;
     _padding2:        [6] u8;
-}
-
-AudioRendererSinkInfoIn :: struct {
-    type:      u8;
-    is_used:   bool;
-    _padding1: [2] u8;
-    node_id:   u32;
-    _padding2: [3] u64;
-    union {
-        device_sink:          AudioRendererDeviceSinkInfoIn;
-        circular_buffer_sink: AudioRendererCircularBufferSinkInfoIn;
-    }
 }
 
 AudioRendererSinkInfoOut :: struct {
@@ -15860,31 +15659,6 @@ HidNpadSixAxisSensorLifo :: struct {
     storage: [17] HidSixAxisSensorStateAtomicStorage;
 }
 
-/// NpadSystemProperties
-HidNpadSystemProperties :: struct {
-    is_charging:                                      u64; ///< Use \ref hidGetNpadPowerInfoSingle / \ref hidGetNpadPowerInfoSplit instead of accessing this directly.
-    #place is_charging; /*bitfield 3*/ is_powered:                                       u64; ///< Use \ref hidGetNpadPowerInfoSingle / \ref hidGetNpadPowerInfoSplit instead of accessing this directly.
-
-    #place is_charging; /*bitfield 6*/ bit6:                                             u64; ///< Unused
-    #place is_charging; /*bitfield 7*/ bit7:                                             u64; ///< Unused
-    #place is_charging; /*bitfield 8*/ bit8:                                             u64; ///< Unused
-    #place is_charging; /*bitfield 9*/ is_unsupported_button_pressed_on_npad_system:     u64; ///< IsUnsupportedButtonPressedOnNpadSystem
-    #place is_charging; /*bitfield 10*/ is_unsupported_button_pressed_on_npad_system_ext: u64; ///< IsUnsupportedButtonPressedOnNpadSystemExt
-
-    #place is_charging; /*bitfield 11*/ is_abxy_button_oriented:                          u64; ///< IsAbxyButtonOriented
-    #place is_charging; /*bitfield 12*/ is_sl_sr_button_oriented:                         u64; ///< IsSlSrButtonOriented
-    #place is_charging; /*bitfield 13*/ is_plus_available:                                u64; ///< [4.0.0+] IsPlusAvailable
-    #place is_charging; /*bitfield 14*/ is_minus_available:                               u64; ///< [4.0.0+] IsMinusAvailable
-    #place is_charging; /*bitfield 15*/ is_directional_buttons_available:                 u64; ///< [8.0.0+] IsDirectionalButtonsAvailable
-
-    #place is_charging; /*bitfield 16*/ unused:                                           u64; ///< Unused
-}
-
-/// NpadSystemButtonProperties
-HidNpadSystemButtonProperties :: struct {
-    is_unintended_home_button_input_protection_enabled: u32; ///< IsUnintendedHomeButtonInputProtectionEnabled
-}
-
 /// HidPowerInfo (system)
 HidPowerInfo :: struct {
     is_powered:    bool; ///< IsPowered
@@ -16073,23 +15847,11 @@ HidSevenSixAxisSensorStates :: struct {
 /// HidSixAxisSensorHandle
 HidSixAxisSensorHandle :: union {
     type_value: u32; ///< TypeValue
-    struct {
-        npad_style_index: u32; ///< NpadStyleIndex
-        #place npad_style_index; /*bitfield 8*/ player_number:    u32; ///< PlayerNumber
-        #place npad_style_index; /*bitfield 16*/ device_idx:       u32; ///< DeviceIdx
-        #place npad_style_index; /*bitfield 24*/ pad:              u32; ///< Padding
-    }
 }
 
 /// HidVibrationDeviceHandle
 HidVibrationDeviceHandle :: union {
     type_value: u32; ///< TypeValue
-    struct {
-        npad_style_index: u32; ///< NpadStyleIndex
-        #place npad_style_index; /*bitfield 8*/ player_number:    u32; ///< PlayerNumber
-        #place npad_style_index; /*bitfield 16*/ device_idx:       u32; ///< DeviceIdx
-        #place npad_style_index; /*bitfield 24*/ pad:              u32; ///< Padding
-    }
 }
 
 /// HidVibrationDeviceInfo
@@ -19370,13 +19132,6 @@ ViDisplay :: struct {
     display_id:   u64;
     display_name: ViDisplayName;
     initialized:  bool;
-}
-
-ViLayer :: struct {
-    layer_id:           u64;
-    igbp_binder_obj_id: u32;
-    initialized:        bool;
-    #place initialized; /*bitfield 1*/ stray_layer:        bool;
 }
 
 ViServiceType :: enum s32 {
@@ -34064,90 +33819,6 @@ inet_pton :: (af: s32, src: *u8, dst: *void) -> s32 #foreign libnx;
 
 tcp_seq :: u32;
 
-/*
-* TCP header.
-* Per RFC 793, September, 1981.
-*/
-tcphdr :: struct {
-    th_sport: u16; /* source port */
-    th_dport: u16; /* destination port */
-    th_seq:   tcp_seq; /* sequence number */
-    th_ack:   tcp_seq; /* acknowledgement number */
-
-    th_x2:    u8; /* (unused) */
-    #place th_x2; /*bitfield 4*/ th_off:   u8; /* data offset */
-
-    th_flags: u8;
-
-    th_win:   u16; /* window */
-    th_sum:   u16; /* checksum */
-    th_urp:   u16; /* urgent pointer */
-}
-
-/*
-* The TCP_INFO socket option comes from the Linux 2.6 TCP API, and permits
-* the caller to query certain information about the state of a TCP
-* connection.  We provide an overlapping set of fields with the Linux
-* implementation, but since this is a fixed size structure, room has been
-* left for growth.  In order to maximize potential future compatibility with
-* the Linux API, the same variable names and order have been adopted, and
-* padding left to make room for omitted fields in case they are added later.
-*
-* XXX: This is currently an unstable ABI/API, in that it is expected to
-* change.
-*/
-tcp_info :: struct {
-    tcpi_state:            u8; /* TCP FSM state. */
-    __tcpi_ca_state:       u8;
-    __tcpi_retransmits:    u8;
-    __tcpi_probes:         u8;
-    __tcpi_backoff:        u8;
-    tcpi_options:          u8; /* Options enabled on conn. */
-    tcpi_snd_wscale:       u8; /* RFC1323 send shift value. */
-    #place tcpi_snd_wscale; /*bitfield 4*/ tcpi_rcv_wscale:       u8; /* RFC1323 recv shift value. */
-
-    tcpi_rto:              u32; /* Retransmission timeout (usec). */
-    __tcpi_ato:            u32;
-    tcpi_snd_mss:          u32; /* Max segment size for send. */
-    tcpi_rcv_mss:          u32; /* Max segment size for receive. */
-
-    __tcpi_unacked:        u32;
-    __tcpi_sacked:         u32;
-    __tcpi_lost:           u32;
-    __tcpi_retrans:        u32;
-    __tcpi_fackets:        u32;
-
-    /* Times; measurements in usecs. */
-    __tcpi_last_data_sent: u32;
-    __tcpi_last_ack_sent:  u32; /* Also unimpl. on Linux? */
-    tcpi_last_data_recv:   u32; /* Time since last recv data. */
-    __tcpi_last_ack_recv:  u32;
-
-    /* Metrics; variable units. */
-    __tcpi_pmtu:           u32;
-    __tcpi_rcv_ssthresh:   u32;
-    tcpi_rtt:              u32; /* Smoothed RTT in usecs. */
-    tcpi_rttvar:           u32; /* RTT variance in usecs. */
-    tcpi_snd_ssthresh:     u32; /* Slow start threshold. */
-    tcpi_snd_cwnd:         u32; /* Send congestion window. */
-    __tcpi_advmss:         u32;
-    __tcpi_reordering:     u32;
-
-    __tcpi_rcv_rtt:        u32;
-    tcpi_rcv_space:        u32; /* Advertised recv window. */
-
-    tcpi_snd_wnd:          u32; /* Advertised send window. */
-    tcpi_snd_bwnd:         u32; /* No longer used. */
-    tcpi_snd_nxt:          u32; /* Next egress seqno */
-    tcpi_rcv_nxt:          u32; /* Next ingress seqno */
-    tcpi_toe_tid:          u32; /* HWTID for TOE endpoints */
-    tcpi_snd_rexmitpack:   u32; /* Retransmitted packets */
-    tcpi_rcv_ooopack:      u32; /* Out-of-order packets */
-    tcpi_snd_zerowin:      u32; /* Zero-sized windows sent */
-
-    __tcpi_pad:            [26] u32; /* Padding. */
-}
-
 tcp_function_set :: struct {
     function_set_name: [32] u8;
     pcbcnt:            u32;
@@ -34323,6 +33994,371 @@ sysctl :: (name: *s32, namelen: u32, oldp: *void, oldlenp: *u64, newp: *void, ne
 sysctlbyname :: (name: *u8, oldp: *void, oldlenp: *u64, newp: *void, newlen: u64) -> s32 #foreign libnx;
 sysctlnametomib :: (name: *u8, mibp: *s32, sizep: *u64) -> s32 #foreign libnx;
 
-#scope_file
+#scope_module
 
 libnx :: #system_library,no_dll "libnx";
+
+#scope_export
+
+#insert #run bitfields_struct(
+    "UTimer",
+    .{ "waitable", #type Waitable, 0, .NONE },
+    .{ "type", #type u8, 8, .NONE },
+    .{ "started", #type bool, 1, .NONE },
+    .{ "next_tick", #type u64, 0, .NONE },
+    .{ "interval", #type u64, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "HipcHeader",
+    .{ "type", #type u32, 16, .NONE },
+    .{ "num_send_statics", #type u32, 4, .NONE },
+    .{ "num_send_buffers", #type u32, 4, .NONE },
+    .{ "num_recv_buffers", #type u32, 4, .NONE },
+    .{ "num_exch_buffers", #type u32, 4, .NONE },
+    .{ "num_data_words", #type u32, 10, .NONE },
+    .{ "recv_static_mode", #type u32, 4, .NONE },
+    .{ "padding", #type u32, 6, .NONE },
+    .{ "recv_list_offset", #type u32, 11, .NONE },
+    .{ "has_special_header", #type u32, 1, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "HipcSpecialHeader",
+    .{ "send_pid", #type u32, 1, .NONE },
+    .{ "num_copy_handles", #type u32, 4, .NONE },
+    .{ "num_move_handles", #type u32, 4, .NONE },
+    .{ "padding", #type u32, 23, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "HipcStaticDescriptor",
+    .{ "index", #type u32, 6, .NONE },
+    .{ "address_high", #type u32, 6, .NONE },
+    .{ "address_mid", #type u32, 4, .NONE },
+    .{ "size", #type u32, 16, .NONE },
+    .{ "address_low", #type u32, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "HipcBufferDescriptor",
+    .{ "size_low", #type u32, 0, .NONE },
+    .{ "address_low", #type u32, 0, .NONE },
+    .{ "mode", #type u32, 2, .NONE },
+    .{ "address_high", #type u32, 22, .NONE },
+    .{ "size_high", #type u32, 4, .NONE },
+    .{ "address_mid", #type u32, 4, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "HipcRecvListEntry",
+    .{ "address_low", #type u32, 0, .NONE },
+    .{ "address_high", #type u32, 16, .NONE },
+    .{ "size", #type u32, 16, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "SetSysModeLine",
+    .{ "pixel_clock", #type u16, 0, .NONE },
+    .{ "horizontal_active_pixels_lsb", #type u8, 0, .NONE },
+    .{ "horizontal_blanking_pixels_lsb", #type u8, 0, .NONE },
+    .{ "horizontal_blanking_pixels_msb", #type u8, 4, .NONE },
+    .{ "horizontal_active_pixels_msb", #type u8, 4, .NONE },
+    .{ "vertical_active_lines_lsb", #type u8, 0, .NONE },
+    .{ "vertical_blanking_lines_lsb", #type u8, 0, .NONE },
+    .{ "vertical_blanking_lines_msb", #type u8, 4, .NONE },
+    .{ "vertical_active_lines_msb", #type u8, 4, .NONE },
+    .{ "horizontal_sync_offset_pixels_lsb", #type u8, 0, .NONE },
+    .{ "horizontal_sync_pulse_width_pixels_lsb", #type u8, 0, .NONE },
+    .{ "horizontal_sync_pulse_width_lines_lsb", #type u8, 4, .NONE },
+    .{ "horizontal_sync_offset_lines_lsb", #type u8, 4, .NONE },
+    .{ "vertical_sync_pulse_width_lines_msb", #type u8, 2, .NONE },
+    .{ "vertical_sync_offset_lines_msb", #type u8, 2, .NONE },
+    .{ "horizontal_sync_pulse_width_pixels_msb", #type u8, 2, .NONE },
+    .{ "horizontal_sync_offset_pixels_msb", #type u8, 2, .NONE },
+    .{ "horizontal_image_size_mm_lsb", #type u8, 0, .NONE },
+    .{ "vertical_image_size_mm_lsb", #type u8, 0, .NONE },
+    .{ "vertical_image_size_mm_msb", #type u8, 4, .NONE },
+    .{ "horizontal_image_size_mm_msb", #type u8, 4, .NONE },
+    .{ "horizontal_border_pixels", #type u8, 0, .NONE },
+    .{ "vertical_border_lines", #type u8, 0, .NONE },
+    .{ "features_bitmap_0", #type u8, 1, .NONE },
+    .{ "features_bitmap_1", #type u8, 1, .NONE },
+    .{ "features_bitmap_2", #type u8, 1, .NONE },
+    .{ "features_bitmap_34", #type u8, 2, .NONE },
+    .{ "features_bitmap_56", #type u8, 2, .NONE },
+    .{ "interlaced", #type u8, 1, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "__anon_struct_20_anon_svd",
+    .{ "svd_index", #type u8, 7, .NONE },
+    .{ "native_flag", #type u8, 1, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "anon_struct_20",
+    .{ "size", #type u8, 5, .NONE },
+    .{ "block_type", #type u8, 3, .NONE },
+    .{ "svd", #type [12] __anon_struct_20_anon_svd, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "anon_struct_22",
+    .{ "size", #type u8, 5, .NONE },
+    .{ "block_type", #type u8, 3, .NONE },
+    .{ "channel_count", #type u8, 3, .NONE },
+    .{ "format_code", #type u8, 4, .NONE },
+    .{ "padding1", #type u8, 1, .NONE },
+    .{ "sampling_rates_bitmap", #type u8, 0, .NONE },
+    .{ "bitrate", #type u8, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "anon_struct_23",
+    .{ "size", #type u8, 5, .NONE },
+    .{ "block_type", #type u8, 3, .NONE },
+    .{ "ieee_registration_id", #type [3] u8, 0, .NONE },
+    .{ "source_physical_address", #type u16, 0, .NONE },
+    .{ "mode_bitmap", #type u8, 0, .NONE },
+    .{ "max_tmds_frequency", #type u8, 0, .NONE },
+    .{ "latency_bitmap", #type u8, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "__SetSysEdid_anon_chromaticity",
+    .{ "green_y_lsb", #type u8, 2, .NONE },
+    .{ "green_x_lsb", #type u8, 2, .NONE },
+    .{ "red_y_lsb", #type u8, 2, .NONE },
+    .{ "red_x_lsb", #type u8, 2, .NONE },
+    .{ "blue_lsb", #type u8, 4, .NONE },
+    .{ "white_lsb", #type u8, 4, .NONE },
+    .{ "red_x_msb", #type u8, 0, .NONE },
+    .{ "red_y_msb", #type u8, 0, .NONE },
+    .{ "green_x_msb", #type u8, 0, .NONE },
+    .{ "green_y_msb", #type u8, 0, .NONE },
+    .{ "blue_x_msb", #type u8, 0, .NONE },
+    .{ "blue_y_msb", #type u8, 0, .NONE },
+    .{ "white_x_msb", #type u8, 0, .NONE },
+    .{ "white_y_msb", #type u8, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "__SetSysEdid_anon_timing_info",
+    .{ "x_resolution", #type u8, 0, .NONE },
+    .{ "vertical_frequency", #type u8, 6, .NONE },
+    .{ "aspect_ratio", #type u8, 2, .NONE },
+);
+
+__SetSysEdid_anon_display_descriptor_name :: struct {
+    display_descriptor_zero: u16;
+    padding1:                u8;
+    descriptor_type:         u8;
+    padding2:                u8;
+    name:                    [13] u8;
+}
+
+__SetSysEdid_anon_display_descriptor_range_limits :: struct {
+    display_descriptor_zero:  u16;
+    padding1:                 u8;
+    descriptor_type:          u8;
+    range_limit_offsets:      u8;
+    vertical_field_rate_min:  u8;
+    vertical_field_rate_max:  u8;
+    horizontal_line_rate_min: u8;
+    horizontal_line_rate_max: u8;
+    pixel_clock_rate_max:     u8; ///< Rounded up to multiples of 10 MHz.
+    extended_timing_info:     u8;
+    padding:                  [7] u8;
+}
+
+#insert #run bitfields_struct(
+    "SetSysEdid",
+    .{ "pattern", #type [8] u8, 0, .NONE },
+    .{ "pnp_id", #type u16, 0, .NONE },
+    .{ "product_code", #type u16, 0, .NONE },
+    .{ "serial_number", #type u32, 0, .NONE },
+    .{ "manufacture_week", #type u8, 0, .NONE },
+    .{ "manufacture_year", #type u8, 0, .NONE },
+    .{ "edid_version", #type u8, 0, .NONE },
+    .{ "edid_revision", #type u8, 0, .NONE },
+    .{ "video_input_parameters_bitmap", #type u8, 0, .NONE },
+    .{ "display_width", #type u8, 0, .NONE },
+    .{ "display_height", #type u8, 0, .NONE },
+    .{ "display_gamma", #type u8, 0, .NONE },
+    .{ "supported_features_bitmap", #type u8, 0, .NONE },
+    .{ "chromaticity", __SetSysEdid_anon_chromaticity, 0, .NONE },
+    .{ "timing_bitmap", #type [3] u8, 0, .NONE },
+    .{ "timing_info", #type [8] __SetSysEdid_anon_timing_info, 0, .NONE },
+    .{ "timing_descriptor", #type [2] SetSysModeLine, 0, .NONE },
+    .{ "display_descriptor_name", __SetSysEdid_anon_display_descriptor_name, 0, .NONE },
+    .{ "display_descriptor_range_limits", __SetSysEdid_anon_display_descriptor_range_limits, 0, .NONE },
+    .{ "extension_count", #type u8, 0, .NONE },
+    .{ "checksum", #type u8, 0, .NONE },
+    .{ "extension_tag", #type u8, 0, .NONE },
+    .{ "revision", #type u8, 0, .NONE },
+    .{ "dtd_start", #type u8, 0, .NONE },
+    .{ "native_dtd_count", #type u8, 4, .NONE },
+    .{ "native_dtd_feature_bitmap", #type u8, 4, .NONE },
+    .{ "data_block", #type SetSysDataBlock, 0, .NONE },
+    .{ "extended_timing_descriptor", #type [5] SetSysModeLine, 0, .NONE },
+    .{ "padding", #type [5] u8, 0, .NONE },
+    .{ "extended_checksum", #type u8, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "AudioRendererVoiceInfoIn",
+    .{ "id", #type u32, 0, .NONE },
+    .{ "node_id", #type u32, 0, .NONE },
+    .{ "is_new", #type bool, 0, .NONE },
+    .{ "is_used", #type bool, 0, .NONE },
+    .{ "state", #type u16, 8, .NONE },
+    .{ "sample_format", #type u16, 8, .NONE },
+    .{ "sample_rate", #type u32, 0, .NONE },
+    .{ "priority", #type u32, 0, .NONE },
+    .{ "sorting_order", #type u32, 0, .NONE },
+    .{ "channel_count", #type u32, 0, .NONE },
+    .{ "pitch", #type float, 0, .NONE },
+    .{ "volume", #type float, 0, .NONE },
+    .{ "biquads", #type [2] AudioRendererBiquadFilter, 0, .NONE },
+    .{ "wavebuf_count", #type u32, 0, .NONE },
+    .{ "wavebuf_head", #type s16, 0, .NONE },
+    .{ "_padding1", #type u16, 0, .NONE },
+    .{ "_padding2", #type u32, 0, .NONE },
+    .{ "extra_params_ptr", #type *void, 0, .NONE },
+    .{ "extra_params_sz", #type u64, 0, .NONE },
+    .{ "dest_mix_id", #type u32, 0, .NONE },
+    .{ "dest_splitter_id", #type u32, 0, .NONE },
+    .{ "wavebufs", #type [4] AudioRendererWaveBuf, 0, .NONE },
+    .{ "channel_ids", #type [6] u32, 0, .NONE },
+    .{ "_padding3", #type [24] u8, 0, .NONE },
+);
+
+__AudioRendererSinkInfoIn_anon_0 :: union {
+    device_sink:          AudioRendererDeviceSinkInfoIn;
+    circular_buffer_sink: AudioRendererCircularBufferSinkInfoIn;
+}
+
+#insert #run bitfields_struct(
+    "AudioRendererSinkInfoIn",
+    .{ "type", #type u8, 8, .NONE },
+    .{ "is_used", #type bool, 0, .NONE },
+    .{ "_padding1", #type [2] u8, 0, .NONE },
+    .{ "node_id", #type u32, 0, .NONE },
+    .{ "_padding2", #type [3] u64, 0, .NONE },
+    .{ "anon_struct_28", __AudioRendererSinkInfoIn_anon_0, 0, .USING },
+);
+
+#insert #run bitfields_struct(
+    "HidNpadSystemProperties",
+    .{ "is_charging", #type u64, 3, .NONE },
+    .{ "is_powered", #type u64, 3, .NONE },
+    .{ "bit6", #type u64, 1, .NONE },
+    .{ "bit7", #type u64, 1, .NONE },
+    .{ "bit8", #type u64, 1, .NONE },
+    .{ "is_unsupported_button_pressed_on_npad_system", #type u64, 1, .NONE },
+    .{ "is_unsupported_button_pressed_on_npad_system_ext", #type u64, 1, .NONE },
+    .{ "is_abxy_button_oriented", #type u64, 1, .NONE },
+    .{ "is_sl_sr_button_oriented", #type u64, 1, .NONE },
+    .{ "is_plus_available", #type u64, 1, .NONE },
+    .{ "is_minus_available", #type u64, 1, .NONE },
+    .{ "is_directional_buttons_available", #type u64, 1, .NONE },
+    .{ "unused", #type u64, 48, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "HidNpadSystemButtonProperties",
+    .{ "is_unintended_home_button_input_protection_enabled", #type u32, 1, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "anon_struct_37",
+    .{ "npad_style_index", #type u32, 8, .NONE },
+    .{ "player_number", #type u32, 8, .NONE },
+    .{ "device_idx", #type u32, 8, .NONE },
+    .{ "pad", #type u32, 8, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "anon_struct_38",
+    .{ "npad_style_index", #type u32, 8, .NONE },
+    .{ "player_number", #type u32, 8, .NONE },
+    .{ "device_idx", #type u32, 8, .NONE },
+    .{ "pad", #type u32, 8, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "ViLayer",
+    .{ "layer_id", #type u64, 0, .NONE },
+    .{ "igbp_binder_obj_id", #type u32, 0, .NONE },
+    .{ "initialized", #type bool, 1, .NONE },
+    .{ "stray_layer", #type bool, 1, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "pthread_rwlock_t",
+    .{ "lock", #type _LOCK_T, 0, .NONE },
+    .{ "cond_r", #type _COND_T, 0, .NONE },
+    .{ "cond_w", #type _COND_T, 0, .NONE },
+    .{ "cnt_r", #type u32, 30, .NONE },
+    .{ "cnt_w", #type u32, 2, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "tcphdr",
+    .{ "th_sport", #type u16, 0, .NONE },
+    .{ "th_dport", #type u16, 0, .NONE },
+    .{ "th_seq", #type tcp_seq, 0, .NONE },
+    .{ "th_ack", #type tcp_seq, 0, .NONE },
+    .{ "th_x2", #type u8, 4, .NONE },
+    .{ "th_off", #type u8, 4, .NONE },
+    .{ "th_flags", #type u8, 0, .NONE },
+    .{ "th_win", #type u16, 0, .NONE },
+    .{ "th_sum", #type u16, 0, .NONE },
+    .{ "th_urp", #type u16, 0, .NONE },
+);
+
+#insert #run bitfields_struct(
+    "tcp_info",
+    .{ "tcpi_state", #type u8, 0, .NONE },
+    .{ "__tcpi_ca_state", #type u8, 0, .NONE },
+    .{ "__tcpi_retransmits", #type u8, 0, .NONE },
+    .{ "__tcpi_probes", #type u8, 0, .NONE },
+    .{ "__tcpi_backoff", #type u8, 0, .NONE },
+    .{ "tcpi_options", #type u8, 0, .NONE },
+    .{ "tcpi_snd_wscale", #type u8, 4, .NONE },
+    .{ "tcpi_rcv_wscale", #type u8, 4, .NONE },
+    .{ "tcpi_rto", #type u32, 0, .NONE },
+    .{ "__tcpi_ato", #type u32, 0, .NONE },
+    .{ "tcpi_snd_mss", #type u32, 0, .NONE },
+    .{ "tcpi_rcv_mss", #type u32, 0, .NONE },
+    .{ "__tcpi_unacked", #type u32, 0, .NONE },
+    .{ "__tcpi_sacked", #type u32, 0, .NONE },
+    .{ "__tcpi_lost", #type u32, 0, .NONE },
+    .{ "__tcpi_retrans", #type u32, 0, .NONE },
+    .{ "__tcpi_fackets", #type u32, 0, .NONE },
+    .{ "__tcpi_last_data_sent", #type u32, 0, .NONE },
+    .{ "__tcpi_last_ack_sent", #type u32, 0, .NONE },
+    .{ "tcpi_last_data_recv", #type u32, 0, .NONE },
+    .{ "__tcpi_last_ack_recv", #type u32, 0, .NONE },
+    .{ "__tcpi_pmtu", #type u32, 0, .NONE },
+    .{ "__tcpi_rcv_ssthresh", #type u32, 0, .NONE },
+    .{ "tcpi_rtt", #type u32, 0, .NONE },
+    .{ "tcpi_rttvar", #type u32, 0, .NONE },
+    .{ "tcpi_snd_ssthresh", #type u32, 0, .NONE },
+    .{ "tcpi_snd_cwnd", #type u32, 0, .NONE },
+    .{ "__tcpi_advmss", #type u32, 0, .NONE },
+    .{ "__tcpi_reordering", #type u32, 0, .NONE },
+    .{ "__tcpi_rcv_rtt", #type u32, 0, .NONE },
+    .{ "tcpi_rcv_space", #type u32, 0, .NONE },
+    .{ "tcpi_snd_wnd", #type u32, 0, .NONE },
+    .{ "tcpi_snd_bwnd", #type u32, 0, .NONE },
+    .{ "tcpi_snd_nxt", #type u32, 0, .NONE },
+    .{ "tcpi_rcv_nxt", #type u32, 0, .NONE },
+    .{ "tcpi_toe_tid", #type u32, 0, .NONE },
+    .{ "tcpi_snd_rexmitpack", #type u32, 0, .NONE },
+    .{ "tcpi_rcv_ooopack", #type u32, 0, .NONE },
+    .{ "tcpi_snd_zerowin", #type u32, 0, .NONE },
+    .{ "__tcpi_pad", #type [26] u32, 0, .NONE },
+);
+

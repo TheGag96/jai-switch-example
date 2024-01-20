@@ -60,13 +60,11 @@ build :: () {
   }
 
   if build_for_target {
-    print("Building for the target hardware.");
+    log("Building for the target hardware.");
   }
   else {
-    print("Building for this PC.");
+    log("Building for this PC.");
   }
-
-  // compiler_add_library_search_directory("external/wiiuse/build/src");
 
   link_target_executable_on_this_machine := build_for_target && LINK_TARGET_EXECUTABLE_ON_THIS_MACHINE;
 
@@ -91,6 +89,8 @@ build :: () {
     target_options.backend                             = .X64;
   }
 
+  make_directory_if_it_does_not_exist("romfs");
+
   #if OPTIMIZED_BUILD {
     set_optimization(*target_options, .OPTIMIZED);
     target_options.llvm_options.code_gen_optimization_level = 3;
@@ -110,64 +110,16 @@ build :: () {
 
   set_build_options_dc(.{do_output = false});
 
+  compile_shaders();
+
   compiler_begin_intercept(w);
 
   add_build_file("src/main.jai", w);
+  // add_build_file("src/main_deko3d.jai", w);
   if link_target_executable_on_this_machine  custom_link(w);
   // hacky_inline_asm_removal(w);
 
   compiler_end_intercept(w);
-}
-
-// Thanks to tsoding! https://github.com/tsoding/jai-wasm/blob/master/first.jai#L31-L77
-// @TODO: Remove when done filling in #asm holes
-hacky_inline_asm_removal :: (w: Workspace) -> [] string {
-  resulting_object_files: [] string;
-
-  while true {
-    message := compiler_wait_for_message();
-
-    if message.kind == {
-      case .TYPECHECKED; {
-        typechecked := cast(*Message_Typechecked) message;
-
-        for typechecked.procedure_bodies {
-          contains_asm := false;
-
-          for it.subexpressions {
-            if it.kind == .ASM {
-              compiler_report("ASM DETECTED!!!", make_location(it), .WARNING);
-              contains_asm = true;
-            }
-          }
-
-          if contains_asm {
-            body := it.expression;
-
-            compiler_report(tprint("Removing whole body of the function % DON'T USE IT!!!", body.header.name), make_location(body), .WARNING);
-
-            new_statements : [..] *Code_Node;
-            body.block.statements = new_statements;
-            compiler_modify_procedure(w, body);
-          }
-        }
-      }
-
-      case .PHASE; {
-        phase := cast(*Message_Phase) message;
-
-        if phase.phase == .POST_WRITE_EXECUTABLE {
-          resulting_object_files = phase.compiler_generated_object_files;
-        }
-      }
-
-      case .COMPLETE; {
-        break;
-      }
-    }
-  }
-
-  return resulting_object_files;
 }
 
 custom_link :: (w: Workspace) {
@@ -196,7 +148,7 @@ custom_link :: (w: Workspace) {
             *args,
             tprint("-specs=%/libnx/switch.specs", devkitpro), "-g", "-march=armv8-a+crc+crypto", "-mtune=cortex-a57",
             "-mtp=soft", "-fPIE", tprint("-Wl,-Map,%", out_map),
-            tprint("-L%/portlibs/switch/lib", devkitpro), tprint("-L%/libnx/lib", devkitpro), "-lnx",
+            tprint("-L%/portlibs/switch/lib", devkitpro), tprint("-L%/libnx/lib", devkitpro), "-ldeko3d", "-lnx",
             "-o", out_elf
           );
 
@@ -212,7 +164,8 @@ custom_link :: (w: Workspace) {
             *args,
             tprint("%/tools/bin/elf2nro", devkitpro),
             out_elf, out_nro,
-            tprint("--icon=%/libnx/default_icon.jpg", devkitpro), tprint("--nacp=%", out_nacp)
+            tprint("--icon=%/libnx/default_icon.jpg", devkitpro), tprint("--nacp=%", out_nacp),
+            "--romfsdir=romfs",
           );
           // print("elf2nro command: %\n", args);
           run_command(..args);
@@ -226,6 +179,47 @@ custom_link :: (w: Workspace) {
       }
     }
   }
+}
+
+compile_shaders :: () {
+  log("Compiling shaders...");
+  make_directory_if_it_does_not_exist("romfs/shaders");
+
+  uam := tprint("%/tools/bin/uam", devkitpro);
+
+  visit_files("src", recursive = true, *uam, (info: *File_Visit_Info, uam: *string) {
+    if !ends_with(info.short_name, ".glsl") {
+      return;
+    }
+
+    shader_stage: string;
+    if      ends_with(info.short_name, "_vsh.glsl") {
+      shader_stage = "vert";
+    }
+    else if ends_with(info.short_name, "_tcsh.glsl") {
+      shader_stage = "tess_ctrl";
+    }
+    else if ends_with(info.short_name, "_tesh.glsl") {
+      shader_stage = "tess_eval";
+    }
+    else if ends_with(info.short_name, "_gsh.glsl") {
+      shader_stage = "geom";
+    }
+    else if ends_with(info.short_name, "_fsh.glsl") {
+      shader_stage = "frag";
+    }
+    else {
+      shader_stage = "comp";
+    }
+
+    out_file := tprint("romfs/shaders/%.dksh", basename(info.short_name));
+
+    args: [..] string;
+    array_add(*args, uam.*, "-o", out_file, info.full_name, "-s", shader_stage);
+
+    log("%", info.short_name);
+    run_command(..args);
+  });
 }
 
 from_c_string :: inline (ptr: *u8) -> string {

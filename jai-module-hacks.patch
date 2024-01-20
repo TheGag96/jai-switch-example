@@ -1,5 +1,5 @@
 diff --git a/modules/Bindings_Generator/module.jai b/modules/Bindings_Generator/module.jai
-index ff67739..c0ee261 100644
+index cb0e472..c06931e 100644
 --- a/modules/Bindings_Generator/module.jai
 +++ b/modules/Bindings_Generator/module.jai
 @@ -145,6 +145,7 @@ RESERVED_NAMES :: string.[
@@ -10,11 +10,19 @@ index ff67739..c0ee261 100644
      "is_constant",
      "null",
      "remove",
+@@ -155,6 +156,7 @@ RESERVED_NAMES :: string.[
+     // Builtin types (as defined in the compiler’s "get_primitive_type_declaration()" function):
+     "Any",
+     "bool",
++    "Code",
+     "float",
+     "float32",
+     "float64",
 diff --git a/modules/Default_Allocator/module.jai b/modules/Default_Allocator/module.jai
-index 5ab83e9..644b61f 100644
+index 1ce3d86..30ab564 100644
 --- a/modules/Default_Allocator/module.jai
 +++ b/modules/Default_Allocator/module.jai
-@@ -2048,7 +2048,7 @@
+@@ -2047,7 +2047,7 @@
  
      #if OS == .WINDOWS {
          crt      :: #system_library "msvcrt";  // For malloc, free on Windows
@@ -24,7 +32,7 @@ index 5ab83e9..644b61f 100644
      }
  }
 diff --git a/modules/Runtime_Support.jai b/modules/Runtime_Support.jai
-index 234d5fb..37154ca 100644
+index f4e7cf9..f6d0b4d 100644
 --- a/modules/Runtime_Support.jai
 +++ b/modules/Runtime_Support.jai
 @@ -271,7 +271,7 @@ write_string_unsynchronized :: (s: string, to_standard_error := false) #no_conte

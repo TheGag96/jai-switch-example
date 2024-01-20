@@ -16,7 +16,7 @@ I recommend storing Jon's Jai beta releases in a Git repo. You can then make a n
 git apply --ignore-whitespace /path/to/this/repo/jai-module-hacks.patch
 ```
 
-These hacks in this repo are up to date for **Jai version 0.1.081**.
+These hacks in this repo are up to date for **Jai version 0.1.083**.
 
 ## Building
 
@@ -28,8 +28,7 @@ If you leave off `- target`, it will build the program for your host machine. Th
 
 ## To do
 
-* Bindings for deko3d
-* Shader compilation through the build script
+* Complete bindings for inline functions / macros in libnx and deko3d
 
 ## Thanks to...
 
