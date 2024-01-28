@@ -28,7 +28,8 @@ If you leave off `- target`, it will build the program for your host machine. Th
 
 ## To do
 
-* Complete bindings for inline functions / macros in libnx and deko3d
+* Complete bindings for inline functions / macros in libnx
+* Make bindings more idiomatic where applicable
 
 ## Thanks to...
 

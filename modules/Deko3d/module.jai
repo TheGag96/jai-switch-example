@@ -35,6 +35,54 @@ dkShaderMakerDefaults :: inline (maker: *DkShaderMaker, codeMem: DkMemBlock, cod
     maker.programId  = 0;
 }
 
+dkImageViewDefaults :: inline (obj: *DkImageView, pImage: *DkImage) {
+    obj.pImage         = pImage;
+    obj.type           = DkImageType.None; // no override
+    obj.format         = DkImageFormat.None; // no override
+    obj.swizzle[0]     = DkImageSwizzle.Red;
+    obj.swizzle[1]     = DkImageSwizzle.Green;
+    obj.swizzle[2]     = DkImageSwizzle.Blue;
+    obj.swizzle[3]     = DkImageSwizzle.Alpha;
+    obj.dsSource       = DkDsSource.Depth;
+    obj.layerOffset    = 0;
+    obj.layerCount     = 0; // no override
+    obj.mipLevelOffset = 0;
+    obj.mipLevelCount  = 0; // no override
+}
+
+dkSamplerDefaults :: inline (obj: *DkSampler) {
+    obj.minFilter               = DkFilter.Nearest;
+    obj.magFilter               = DkFilter.Nearest;
+    obj.mipFilter               = DkMipFilter.None;
+    obj.wrapMode[0]             = DkWrapMode.Repeat;
+    obj.wrapMode[1]             = DkWrapMode.Repeat;
+    obj.wrapMode[2]             = DkWrapMode.Repeat;
+    obj.lodClampMin             = 0.0;
+    obj.lodClampMax             = 1000.0;
+    obj.lodBias                 = 0.0;
+    obj.lodSnap                 = 0.0;
+    obj.compareEnable           = false;
+    obj.compareOp               = DkCompareOp.Less;
+    obj.borderColor[0].value_ui = 0;
+    obj.borderColor[1].value_ui = 0;
+    obj.borderColor[2].value_ui = 0;
+    obj.borderColor[3].value_ui = 0;
+    obj.maxAnisotropy           = 1.0;
+    obj.reductionMode           = DkSamplerReduction.WeightedAverage;
+}
+
+dkMakeImageHandle :: inline (id: u32) -> DkResHandle {
+    return id & ((1 << 20) - 1);
+}
+
+dkMakeSamplerHandle :: inline (id: u32) -> DkResHandle {
+    return id << 20;
+}
+
+dkMakeTextureHandle :: inline (imageId: u32, samplerId: u32) -> DkResHandle {
+    return dkMakeImageHandle(imageId) | dkMakeSamplerHandle(samplerId);
+}
+
 dkMemBlockMakerDefaults :: inline (maker: *DkMemBlockMaker, device: DkDevice, size: u32) {
     maker.device  = device;
     maker.size    = size;
@@ -55,21 +103,6 @@ dkCmdBufMakerDefaults :: inline (maker: *DkCmdBufMaker, device: DkDevice) {
     maker.cbAddMem = null;
 }
 
-dkImageViewDefaults :: inline (obj: *DkImageView, pImage: *DkImage) {
-    obj.pImage         = pImage;
-    obj.type           = .None; // no override
-    obj.format         = .None; // no override
-    obj.swizzle[0]     = .Red;
-    obj.swizzle[1]     = .Green;
-    obj.swizzle[2]     = .Blue;
-    obj.swizzle[3]     = .Alpha;
-    obj.dsSource       = .Depth;
-    obj.layerOffset    = 0;
-    obj.layerCount     = 0; // no override
-    obj.mipLevelOffset = 0;
-    obj.mipLevelCount  = 0; // no override
-}
-
 dkRasterizerStateDefaults :: inline (state: *DkRasterizerState) {
     state.set_rasterizerEnable        (state, 1);
     state.set_depthClampEnable        (state, 0);
@@ -81,6 +114,25 @@ dkRasterizerStateDefaults :: inline (state: *DkRasterizerState) {
     state.set_provokingVertex         (state, .Last);
     state.set_polygonSmoothEnableMask (state, 0);
     state.set_depthBiasEnableMask     (state, 0);
+}
+
+dkMultisampleStateDefaults :: inline (state: *DkMultisampleState) {
+    state.mode                  = DkMsMode._1x;
+    state.rasterizerMode        = DkMsMode._1x;
+    state.alphaToCoverageEnable = false;
+    state.alphaToCoverageDither = true;
+    state.coverageToColorEnable = false;
+    state.coverageToColorOutput = 0;
+    state.coverageModulation    = DkCoverageModulation.None;
+    state.sampleLocations[0]    = 0x88888888;
+    state.sampleLocations[1]    = 0x88888888;
+    state.sampleLocations[2]    = 0x88888888;
+    state.sampleLocations[3]    = 0x88888888;
+}
+
+dkColorStateSetBlendEnable :: inline (state: *DkColorState, id: u32, enable: bool) {
+    if enable  state.blendEnableMask |= 1 << id;
+    else       state.blendEnableMask &= ~(1 << id);
 }
 
 dkColorStateDefaults :: inline (state: *DkColorState) {
@@ -100,9 +152,54 @@ dkQueueMakerDefaults :: inline (maker: *DkQueueMaker, device: DkDevice) {
     maker.maxConcurrentComputeJobs = DK_DEFAULT_MAX_COMPUTE_CONCURRENT_JOBS;
 }
 
-dkColorWriteStateDefaults :: inline (state: *DkColorWriteState)
-{
+dkColorWriteStateDefaults :: inline (state: *DkColorWriteState) {
     state.masks = 0xFFFFFFFF;
+}
+
+dkColorWriteStateSetMask :: inline (state: *DkColorWriteState, id: u32, colorWriteMask: u32)
+{
+    state.masks &= ~(0xF << (id*4));
+    state.masks |= (colorWriteMask&0xF) << (id*4);
+}
+
+dkBlendStateDefaults :: inline (state: *DkBlendState) {
+    state.colorBlendOp        = DkBlendOp.Add;
+    state.srcColorBlendFactor = DkBlendFactor_SrcAlpha;
+    state.dstColorBlendFactor = DkBlendFactor_InvSrcAlpha;
+
+    state.alphaBlendOp        = DkBlendOp.Add;
+    state.srcAlphaBlendFactor = DkBlendFactor_One;
+    state.dstAlphaBlendFactor = DkBlendFactor_Zero;
+}
+
+dkBlendStateSetOps :: inline (state: *DkBlendState, colorBlendOp: DkBlendOp, alphaBlendOp: DkBlendOp) {
+    state.colorBlendOp = colorBlendOp;
+    state.alphaBlendOp = alphaBlendOp;
+}
+
+dkBlendStateSetFactors :: inline (state: *DkBlendState, srcColorBlendFactor: DkBlendFactor, dstColorBlendFactor: DkBlendFactor, srcAlphaBlendFactor: DkBlendFactor, dstAlphaBlendFactor: DkBlendFactor) {
+    state.srcColorBlendFactor = srcColorBlendFactor;
+    state.dstColorBlendFactor = dstColorBlendFactor;
+    state.srcAlphaBlendFactor = srcAlphaBlendFactor;
+    state.dstAlphaBlendFactor = dstAlphaBlendFactor;
+}
+
+dkDepthStencilStateDefaults :: inline (state: *DkDepthStencilState)
+{
+    state.depthTestEnable         = true;
+    state.depthWriteEnable        = true;
+    state.stencilTestEnable       = false;
+    state.depthCompareOp          = DkCompareOp.Less;
+
+    state.stencilFrontFailOp      = DkStencilOp.Keep;
+    state.stencilFrontPassOp      = DkStencilOp.Replace;
+    state.stencilFrontDepthFailOp = DkStencilOp.Keep;
+    state.stencilFrontCompareOp   = DkCompareOp.Always;
+
+    state.stencilBackFailOp       = DkStencilOp.Keep;
+    state.stencilBackPassOp       = DkStencilOp.Replace;
+    state.stencilBackDepthFailOp  = DkStencilOp.Keep;
+    state.stencilBackCompareOp    = DkCompareOp.Always;
 }
 
 dkTimestampToNs :: inline (ts: u64) -> u64 {
