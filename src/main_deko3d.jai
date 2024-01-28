@@ -1,6 +1,7 @@
 #import "Basic";
 #import "Nx";
 #import "Deko3d";
+#import "POSIX";
 
 // Define the desired number of framebuffers
 FB_NUM :: 2;
@@ -28,20 +29,6 @@ g_cmdsBindFramebuffer: [FB_NUM]DkCmdList;
 g_cmdsRender: DkCmdList;
 
 g_renderQueue: DkQueue;
-
-// @TODO libc
-libc :: #system_library "libc";
-FILE :: struct {}
-SEEK_SET :: 0;
-SEEK_CUR :: 1;
-SEEK_END :: 2;
-fopen  :: (pathname: *u8, mode: *u8) -> *FILE #foreign libc;
-fclose :: (stream: *FILE) -> s32 #foreign libc;
-ftell  :: (stream: *FILE) -> s64 #foreign libc;
-fread  :: (ptr: *void, size: size_t, count: size_t, stream: *FILE) -> size_t #foreign libc;
-fwrite :: (ptr: *void, size: size_t, count: size_t, stream: *FILE) -> size_t #foreign libc;
-fseek  :: (stream: *FILE, offset: s64, whence: s32) -> s32 #foreign libc;
-rewind  :: (stream: *FILE) #foreign libc;
 
 // Simple function for loading a shader from the filesystem
 loadShader :: (pShader: *DkShader, path: *u8)

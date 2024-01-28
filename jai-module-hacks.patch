@@ -31,6 +31,1263 @@ index 1ce3d86..30ab564 100644
          crt      :: #system_library "libc";
      }
  }
+diff --git a/modules/POSIX/POSIX.jai b/modules/POSIX/POSIX.jai
+index 29cc410..8511a88 100644
+--- a/modules/POSIX/POSIX.jai
++++ b/modules/POSIX/POSIX.jai
+@@ -21,15 +21,15 @@ PTHREAD_START_ROUTINE :: #type (parameter: *void) -> *void #c_call;
+ size_t   :: u64;
+ ssize_t  :: s64;
+ off_t    :: s64;
+-ino_t    :: u64;
+-uid_t    :: u32;
+-gid_t    :: u32;
+ blkcnt_t :: s64;
+ time_t   :: s64;
+-key_t    :: s32;
+ pid_t    :: s32;
+-suseconds_t :: s32;
+ #if OS == .LINUX {
++    ino_t     :: u64;
++    uid_t     :: u32;
++    gid_t     :: u32;
++    key_t     :: s32;
++    suseconds_t :: s32;
+     dev_t     :: u64;
+     mode_t    :: u32;
+     nlink_t   :: u64;
+@@ -37,6 +37,11 @@ suseconds_t :: s32;
+     clock_t   :: s64;
+ 
+ } else #if OS == .MACOS {
++    ino_t     :: u64;
++    uid_t     :: u32;
++    gid_t     :: u32;
++    key_t     :: s32;
++    suseconds_t :: s32;
+     dev_t     :: s32;
+     mode_t    :: u16;
+     nlink_t   :: u16;
+@@ -46,6 +51,19 @@ suseconds_t :: s32;
+     quad_t  :: u64;
+     caddr_t :: *s8;
+     fixpt_t :: u32;
++} else #if OS == .NN_SWITCH {
++    ino_t     :: u16;
++    uid_t     :: u16;
++    gid_t     :: u16;
++    key_t     :: s64;
++    suseconds_t :: s64;
++    dev_t     :: s16;
++    mode_t    :: u32;
++    nlink_t   :: u16;
++    blksize_t :: s64;
++    clock_t   :: u64;
++
++    caddr_t :: *s8;
+ }
+ 
+ // @header sys/poll.h
+@@ -68,6 +86,8 @@ pollfd :: struct {
+     nfds_t :: u64;
+ } else #if OS == .MACOS {
+     nfds_t :: u32;
++} else #if OS == .NN_SWITCH {
++    nfds_t :: u32;
+ }
+ 
+ // @header sys/wait.h
+@@ -101,6 +121,13 @@ WUNTRACED :: 2;
+     WIFSTOPPED   :: inline (status: s32) -> bool { return WSTATUS(status) == WSTOPPED && WSTOPSIG(status) != 0x13; }
+     WIFCONTINUED :: inline (status: s32) -> bool { return WSTATUS(status) == WSTOPPED && WSTOPSIG(status) == 0x13; }
+     WCOREDUMP    :: inline (status: s32) -> s32  { return status & WCOREFLAG; }
++} else #if OS == .NN_SWITCH {
++    WEXITSTATUS  :: inline (status: s32) -> s32  { return (status & 0xff00) >> 8; }
++    WTERMSIG     :: inline (status: s32) -> s32  { return status & 0x7f; }
++    WSTOPSIG     :: inline (status: s32) -> s32  { return WEXITSTATUS(status); }
++    WIFEXITED    :: inline (status: s32) -> bool { return (status & 0xFF) == 0; }
++    WIFSIGNALED  :: inline (status: s32) -> bool { return (status & 0x7F) > 0 && (status & 0x7F) < 0x7F; }
++    WIFSTOPPED   :: inline (status: s32) -> bool { return (status & 0xff) == 0x7f; }
+ }
+ 
+ // @header sys/ipc.h
+@@ -171,6 +198,22 @@ O_ACCMODE :: 0x3;     // Mask for above modes
+     O_SYMLINK      :: 0x00200000; // Allow open of a symlink
+     O_CLOEXEC      :: 0x01000000; // Implicitly set FD_CLOEXEC
+     O_NOFOLLOW_ANY :: 0x20000000; // No symlinks allowed in path
++} else #if OS == .NN_SWITCH {
++    O_CREAT  :: 0x0200;
++    O_EXCL   :: 0x0800;
++    O_NOCTTY :: 0x8000;
++    O_TRUNC  :: 0x0400;
++
++    O_APPEND    :: 0x000008;
++    O_NONBLOCK  :: 0x004000;
++    FASYNC      :: 0x000040; // fcntl, for BSD compatibility
++    O_DIRECT    :: 0x080000; // direct disk access hint
++    O_DIRECTORY :: 0x200000; // must be a directory
++    O_NOFOLLOW  :: 0x100000; // don't follow links
++    O_CLOEXEC   :: 0x040000; // set close_on_exec
++    O_NDELAY    :: O_NONBLOCK;
++
++    O_SYNC   :: 0x002000;
+ }
+ #if OS == .LINUX {
+     /*
+@@ -204,6 +247,14 @@ O_ACCMODE :: 0x3;     // Mask for above modes
+     AT_REALDEV              :: 0x0200; // Return real device inodes resides on for fstatat(2)
+     AT_FDONLY               :: 0x0400; // Use only the fd and Ignore the path for fstatat(2)
+     AT_SYMLINK_NOFOLLOW_ANY :: 0x0800; // Path should not contain any symlinks
++} else #if OS == .NN_SWITCH {
++    // Descriptor value for the current working directory
++    AT_FDCWD :: -2;
++    // Flags for the at functions
++    AT_EACCESS              :: 0x0001; // Use effective ids in access check
++    AT_SYMLINK_NOFOLLOW     :: 0x0002; // Act on the symlink itself not the target
++    AT_SYMLINK_FOLLOW       :: 0x0004; // Act on target of symlink
++    AT_REMOVEDIR            :: 0x0008; // Path refers to directory
+ }
+ // Constants used for fcntl(2)
+ F_DUPFD     :: 0; // duplicate file descriptor
+@@ -242,6 +293,21 @@ F_SETFL     :: 4; // set file status flags
+     F_RDLCK         :: 1; // shared or read lock
+     F_UNLCK         :: 2; // unlock
+     F_WRLCK         :: 3; // exclusive or write lock
++} else #if OS == .NN_SWITCH {
++    F_GETLK  :: 7;
++    F_SETLK  :: 8;
++    F_SETLKW :: 9;
++
++    F_SETOWN :: 6; // for sockets.
++    F_GETOWN :: 5; // for sockets.
++
++    // for F_[GET|SET]FL
++    FD_CLOEXEC :: 1; // actually anything with low bit set goes
++
++    // for posix fcntl() and lockf()
++    F_RDLCK :: 1;
++    F_WRLCK :: 2;
++    F_UNLCK :: 3;
+ }
+ // Owner permissions.
+ S_IRUSR :: 0x100; // Read.
+@@ -370,9 +436,36 @@ using clockid_t :: enum s32 {
+         CLOCK_PROCESS_CPUTIME_ID   :: 12;
+         CLOCK_THREAD_CPUTIME_ID    :: 16;
+     }
++    #if OS == .NN_SWITCH {
++        CLOCK_MONOTONIC ::  4;
++    }
+ }
+ 
+-#if OS == .LINUX {
++
++using clockid_t_2 :: enum s32 {
++    CLOCK_2_REALTIME :: 0;
++    #if OS == .LINUX {
++        CLOCK_2_MONOTONIC          :: 1;
++        CLOCK_2_PROCESS_CPUTIME_ID :: 2;
++        CLOCK_2_THREAD_CPUTIME_ID  :: 3;
++        CLOCK_2_MONOTONIC_RAW      :: 4;
++        CLOCK_2_REALTIME_COARSE    :: 5;
++        CLOCK_2_MONOTONIC_COARSE   :: 6;
++    } else #if OS == .MACOS {
++        CLOCK_2_MONOTONIC            ::  6;
++        CLOCK_2_MONOTONIC_RAW        ::  4;
++        CLOCK_2_MONOTONIC_RAW_APPROX ::  5;
++        CLOCK_2_UPTIME_RAW           ::  8;
++        CLOCK_2_UPTIME_RAW_APPROX    ::  9;
++        CLOCK_2_PROCESS_CPUTIME_ID   :: 12;
++        CLOCK_2_THREAD_CPUTIME_ID    :: 16;
++    }
++    #if OS == .NN_SWITCH {
++        CLOCK_2_MONOTONIC ::  4;
++    }
++}
++
++#if OS == .LINUX || OS == .NN_SWITCH {
+     itimerspec :: struct {
+         it_interval: timespec; // Interval for periodic timer
+         it_value:    timespec; // Initial expiration
+@@ -459,6 +552,12 @@ SEEK_END :: 2;
+         d_type:    u8;
+         d_name:    [255] u8;
+     }
++} else #if OS == .NN_SWITCH {
++    dirent :: struct {
++        d_ino:     ino_t;
++        d_type:    u8;
++        d_name:    [255+1] u8;
++    }
+ }
+ 
+ DT_UNKNOWN ::   0; // Some filesystems may always show this value in which case calling stat is required
+@@ -469,51 +568,54 @@ DT_BLK     ::   6;
+ DT_REG     ::   8;
+ DT_LNK     ::  10;
+ DT_SOCK    ::  12;
+-DT_WHT     :: 114;
++DT_WHT     ::  14;
+ 
+ IFTODT :: inline (mode:    mode_t) -> mode_t { return (mode & 0xF000) >> 12; }
+ DTTOIF :: inline (dirtype: mode_t) -> mode_t { return dirtype << 12; }
+ 
+ // @header sys/mman.h
+ 
+-PROT_NONE  :: 0x00;
+-PROT_READ  :: 0x01;
+-PROT_WRITE :: 0x02;
+-PROT_EXEC  :: 0x04;
++#if OS != .NN_SWITCH {
++    PROT_NONE  :: 0x00;
++    PROT_READ  :: 0x01;
++    PROT_WRITE :: 0x02;
++    PROT_EXEC  :: 0x04;
+ 
+-MAP_FAILED :: cast,no_check(*void) 0xffff_ffff_ffff_ffff;
++    MAP_FAILED :: cast,no_check(*void) 0xffff_ffff_ffff_ffff;
+ 
+-MAP_SHARED  :: 0x0001;
+-MAP_PRIVATE :: 0x0002;
++    MAP_SHARED  :: 0x0001;
++    MAP_PRIVATE :: 0x0002;
+ 
+-MAP_FIXED :: 0x0010;
++    MAP_FIXED :: 0x0010;
+ 
+-MAP_FILE :: 0x0000;
+-MAP_ANON :: MAP_ANONYMOUS;
+-#if OS == .LINUX {
+-    MAP_ANONYMOUS :: 0x0020; // Warning: A different value than MacOS!
+-    MAP_POPULATE  :: 0x8000;
+-} else #if OS == .MACOS {
+-    MAP_ANONYMOUS :: 0x1000;
+-}
++    MAP_FILE :: 0x0000;
++    MAP_ANON :: MAP_ANONYMOUS;
++    #if OS == .LINUX {
++        MAP_ANONYMOUS :: 0x0020; // Warning: A different value than MacOS!
++        MAP_POPULATE  :: 0x8000;
++    } else #if OS == .MACOS {
++        MAP_ANONYMOUS :: 0x1000;
++    }
+ 
+-MADV_NORMAL     :: 0;
+-MADV_RANDOM     :: 1;
+-MADV_SEQUENTIAL :: 2;
+-MADV_WILLNEED   :: 3;
+-MADV_DONTNEED    ::  4;
+-#if OS == .LINUX {
+-    MADV_SPACEAVAIL  ::  5;
+-    MADV_REMOVE      ::  9;
+-    MADV_DONTFORK    :: 10;
+-    MADV_DOFORK      :: 11;
+-    MADV_MERGEABLE   :: 12;
+-    MADV_UNMERGEABLE :: 13;
+-    MADV_HUGEPAGE    :: 14;
+-    MADV_NOHUGEPAGE  :: 15;
+-    MADV_DODUMP      :: 17;
++    MADV_NORMAL     :: 0;
++    MADV_RANDOM     :: 1;
++    MADV_SEQUENTIAL :: 2;
++    MADV_WILLNEED   :: 3;
++    MADV_DONTNEED    ::  4;
++    #if OS == .LINUX {
++        MADV_SPACEAVAIL  ::  5;
++        MADV_REMOVE      ::  9;
++        MADV_DONTFORK    :: 10;
++        MADV_DOFORK      :: 11;
++        MADV_MERGEABLE   :: 12;
++        MADV_UNMERGEABLE :: 13;
++        MADV_HUGEPAGE    :: 14;
++        MADV_NOHUGEPAGE  :: 15;
++        MADV_DODUMP      :: 17;
++    }
+ }
+ 
++
+ // @header unistd.h
+ STDIN_FILENO  :: 0;
+ STDOUT_FILENO :: 1;
+@@ -814,6 +916,164 @@ STDERR_FILENO :: 2;
+         _SC_TIMER_MAX             :: 52;
+         _SC_GETPW_R_SIZE_MAX      :: 71;
+     }
++} else #if OS == .NN_SWITCH {
++    using _SC_definitions :: enum s32 {
++        _SC_ARG_MAX                      ::  0;
++        _SC_CHILD_MAX                    ::  1;
++        _SC_CLK_TCK                      ::  2;
++        _SC_NGROUPS_MAX                  ::  3;
++        _SC_OPEN_MAX                     ::  4;
++        _SC_JOB_CONTROL                  ::  5;
++        _SC_SAVED_IDS                    ::  6;
++        _SC_VERSION                      ::  7;
++        _SC_PAGESIZE                     ::  8;
++        _SC_PAGE_SIZE                    ::  _SC_PAGESIZE;
++        /* These are non-POSIX values we accidentally introduced in 2000 without
++           guarding them.  Keeping them unguarded for backward compatibility. */
++        _SC_NPROCESSORS_CONF             ::  9;
++        _SC_NPROCESSORS_ONLN             :: 10;
++        _SC_PHYS_PAGES                   :: 11;
++        _SC_AVPHYS_PAGES                 :: 12;
++        /* End of non-POSIX values. */
++        _SC_MQ_OPEN_MAX                  :: 13;
++        _SC_MQ_PRIO_MAX                  :: 14;
++        _SC_RTSIG_MAX                    :: 15;
++        _SC_SEM_NSEMS_MAX                :: 16;
++        _SC_SEM_VALUE_MAX                :: 17;
++        _SC_SIGQUEUE_MAX                 :: 18;
++        _SC_TIMER_MAX                    :: 19;
++        _SC_TZNAME_MAX                   :: 20;
++        _SC_ASYNCHRONOUS_IO              :: 21;
++        _SC_FSYNC                        :: 22;
++        _SC_MAPPED_FILES                 :: 23;
++        _SC_MEMLOCK                      :: 24;
++        _SC_MEMLOCK_RANGE                :: 25;
++        _SC_MEMORY_PROTECTION            :: 26;
++        _SC_MESSAGE_PASSING              :: 27;
++        _SC_PRIORITIZED_IO               :: 28;
++        _SC_REALTIME_SIGNALS             :: 29;
++        _SC_SEMAPHORES                   :: 30;
++        _SC_SHARED_MEMORY_OBJECTS        :: 31;
++        _SC_SYNCHRONIZED_IO              :: 32;
++        _SC_TIMERS                       :: 33;
++        _SC_AIO_LISTIO_MAX               :: 34;
++        _SC_AIO_MAX                      :: 35;
++        _SC_AIO_PRIO_DELTA_MAX           :: 36;
++        _SC_DELAYTIMER_MAX               :: 37;
++        _SC_THREAD_KEYS_MAX              :: 38;
++        _SC_THREAD_STACK_MIN             :: 39;
++        _SC_THREAD_THREADS_MAX           :: 40;
++        _SC_TTY_NAME_MAX                 :: 41;
++        _SC_THREADS                      :: 42;
++        _SC_THREAD_ATTR_STACKADDR        :: 43;
++        _SC_THREAD_ATTR_STACKSIZE        :: 44;
++        _SC_THREAD_PRIORITY_SCHEDULING   :: 45;
++        _SC_THREAD_PRIO_INHERIT          :: 46;
++        /* _SC_THREAD_PRIO_PROTECT was _SC_THREAD_PRIO_CEILING in early drafts */
++        _SC_THREAD_PRIO_PROTECT          :: 47;
++        _SC_THREAD_PRIO_CEILING          :: _SC_THREAD_PRIO_PROTECT;
++        _SC_THREAD_PROCESS_SHARED        :: 48;
++        _SC_THREAD_SAFE_FUNCTIONS        :: 49;
++        _SC_GETGR_R_SIZE_MAX             :: 50;
++        _SC_GETPW_R_SIZE_MAX             :: 51;
++        _SC_LOGIN_NAME_MAX               :: 52;
++        _SC_THREAD_DESTRUCTOR_ITERATIONS :: 53;
++        _SC_ADVISORY_INFO                :: 54;
++        _SC_ATEXIT_MAX                   :: 55;
++        _SC_BARRIERS                     :: 56;
++        _SC_BC_BASE_MAX                  :: 57;
++        _SC_BC_DIM_MAX                   :: 58;
++        _SC_BC_SCALE_MAX                 :: 59;
++        _SC_BC_STRING_MAX                :: 60;
++        _SC_CLOCK_SELECTION              :: 61;
++        _SC_COLL_WEIGHTS_MAX             :: 62;
++        _SC_CPUTIME                      :: 63;
++        _SC_EXPR_NEST_MAX                :: 64;
++        _SC_HOST_NAME_MAX                :: 65;
++        _SC_IOV_MAX                      :: 66;
++        _SC_IPV6                         :: 67;
++        _SC_LINE_MAX                     :: 68;
++        _SC_MONOTONIC_CLOCK              :: 69;
++        _SC_RAW_SOCKETS                  :: 70;
++        _SC_READER_WRITER_LOCKS          :: 71;
++        _SC_REGEXP                       :: 72;
++        _SC_RE_DUP_MAX                   :: 73;
++        _SC_SHELL                        :: 74;
++        _SC_SPAWN                        :: 75;
++        _SC_SPIN_LOCKS                   :: 76;
++        _SC_SPORADIC_SERVER              :: 77;
++        _SC_SS_REPL_MAX                  :: 78;
++        _SC_SYMLOOP_MAX                  :: 79;
++        _SC_THREAD_CPUTIME               :: 80;
++        _SC_THREAD_SPORADIC_SERVER       :: 81;
++        _SC_TIMEOUTS                     :: 82;
++        _SC_TRACE                        :: 83;
++        _SC_TRACE_EVENT_FILTER           :: 84;
++        _SC_TRACE_EVENT_NAME_MAX         :: 85;
++        _SC_TRACE_INHERIT                :: 86;
++        _SC_TRACE_LOG                    :: 87;
++        _SC_TRACE_NAME_MAX               :: 88;
++        _SC_TRACE_SYS_MAX                :: 89;
++        _SC_TRACE_USER_EVENT_MAX         :: 90;
++        _SC_TYPED_MEMORY_OBJECTS         :: 91;
++        _SC_V7_ILP32_OFF32               :: 92;
++        _SC_V6_ILP32_OFF32               :: _SC_V7_ILP32_OFF32;
++        _SC_XBS5_ILP32_OFF32             :: _SC_V7_ILP32_OFF32;
++        _SC_V7_ILP32_OFFBIG              :: 93;
++        _SC_V6_ILP32_OFFBIG              :: _SC_V7_ILP32_OFFBIG;
++        _SC_XBS5_ILP32_OFFBIG            :: _SC_V7_ILP32_OFFBIG;
++        _SC_V7_LP64_OFF64                :: 94;
++        _SC_V6_LP64_OFF64                :: _SC_V7_LP64_OFF64;
++        _SC_XBS5_LP64_OFF64              :: _SC_V7_LP64_OFF64;
++        _SC_V7_LPBIG_OFFBIG              :: 95;
++        _SC_V6_LPBIG_OFFBIG              :: _SC_V7_LPBIG_OFFBIG;
++        _SC_XBS5_LPBIG_OFFBIG            :: _SC_V7_LPBIG_OFFBIG;
++        _SC_XOPEN_CRYPT                  :: 96;
++        _SC_XOPEN_ENH_I18N               :: 97;
++        _SC_XOPEN_LEGACY                 :: 98;
++        _SC_XOPEN_REALTIME               :: 99;
++        _SC_STREAM_MAX                   ::100;
++        _SC_PRIORITY_SCHEDULING          ::101;
++        _SC_XOPEN_REALTIME_THREADS       ::102;
++        _SC_XOPEN_SHM                    ::103;
++        _SC_XOPEN_STREAMS                ::104;
++        _SC_XOPEN_UNIX                   ::105;
++        _SC_XOPEN_VERSION                ::106;
++        _SC_2_CHAR_TERM                  ::107;
++        _SC_2_C_BIND                     ::108;
++        _SC_2_C_DEV                      ::109;
++        _SC_2_FORT_DEV                   ::110;
++        _SC_2_FORT_RUN                   ::111;
++        _SC_2_LOCALEDEF                  ::112;
++        _SC_2_PBS                        ::113;
++        _SC_2_PBS_ACCOUNTING             ::114;
++        _SC_2_PBS_CHECKPOINT             ::115;
++        _SC_2_PBS_LOCATE                 ::116;
++        _SC_2_PBS_MESSAGE                ::117;
++        _SC_2_PBS_TRACK                  ::118;
++        _SC_2_SW_DEV                     ::119;
++        _SC_2_UPE                        ::120;
++        _SC_2_VERSION                    ::121;
++        _SC_THREAD_ROBUST_PRIO_INHERIT   ::122;
++        _SC_THREAD_ROBUST_PRIO_PROTECT   ::123;
++        _SC_XOPEN_UUCP                   ::124;
++        _SC_LEVEL1_ICACHE_SIZE           ::125;
++        _SC_LEVEL1_ICACHE_ASSOC          ::126;
++        _SC_LEVEL1_ICACHE_LINESIZE       ::127;
++        _SC_LEVEL1_DCACHE_SIZE           ::128;
++        _SC_LEVEL1_DCACHE_ASSOC          ::129;
++        _SC_LEVEL1_DCACHE_LINESIZE       ::130;
++        _SC_LEVEL2_CACHE_SIZE            ::131;
++        _SC_LEVEL2_CACHE_ASSOC           ::132;
++        _SC_LEVEL2_CACHE_LINESIZE        ::133;
++        _SC_LEVEL3_CACHE_SIZE            ::134;
++        _SC_LEVEL3_CACHE_ASSOC           ::135;
++        _SC_LEVEL3_CACHE_LINESIZE        ::136;
++        _SC_LEVEL4_CACHE_SIZE            ::137;
++        _SC_LEVEL4_CACHE_ASSOC           ::138;
++        _SC_LEVEL4_CACHE_LINESIZE        ::139;
++        _SC_POSIX_26_VERSION             ::140;
++    }
+ }
+ 
+ // @header errno.h
+@@ -1061,6 +1321,92 @@ STDERR_FILENO :: 2;
+     EOWNERDEAD      :: 105; // Previous owner died
+     EQFULL          :: 106; // Interface output queue is full
+     ELAST           :: 106;
++} else #if OS == .NN_SWITCH {
++    EPERM           :: 1;      // Not owner
++    ENOENT          :: 2;      // No such file or directory
++    ESRCH           :: 3;      // No such process
++    EINTR           :: 4;      // Interrupted system call
++    EIO             :: 5;      // I/O error
++    ENXIO           :: 6;      // No such device or address
++    E2BIG           :: 7;      // Arg list too long
++    ENOEXEC         :: 8;      // Exec format error
++    EBADF           :: 9;      // Bad file number
++    ECHILD          :: 10;     // No children
++    EAGAIN          :: 11;     // No more processes
++    ENOMEM          :: 12;     // Not enough space
++    EACCES          :: 13;     // Permission denied
++    EFAULT          :: 14;     // Bad address
++    EBUSY           :: 16;     // Device or resource busy
++    EEXIST          :: 17;     // File exists
++    EXDEV           :: 18;     // Cross-device link
++    ENODEV          :: 19;     // No such device
++    ENOTDIR         :: 20;     // Not a directory
++    EISDIR          :: 21;     // Is a directory
++    EINVAL          :: 22;     // Invalid argument
++    ENFILE          :: 23;     // Too many open files in system
++    EMFILE          :: 24;     // File descriptor value too large
++    ENOTTY          :: 25;     // Not a character device
++    ETXTBSY         :: 26;     // Text file busy
++    EFBIG           :: 27;     // File too large
++    ENOSPC          :: 28;     // No space left on device
++    ESPIPE          :: 29;     // Illegal seek
++    EROFS           :: 30;     // Read-only file system
++    EMLINK          :: 31;     // Too many links
++    EPIPE           :: 32;     // Broken pipe
++    EDOM            :: 33;     // Mathematics argument out of domain of function
++    ERANGE          :: 34;     // Result too large
++    ENOMSG          :: 35;     // No message of desired type
++    EIDRM           :: 36;     // Identifier removed
++    EDEADLK         :: 45;     // Deadlock
++    ENOLCK          :: 46;     // No lock
++    ENOSTR          :: 60;     // Not a stream
++    ENODATA         :: 61;     // No data (for no delay io)
++    ETIME           :: 62;     // Stream ioctl timeout
++    ENOSR           :: 63;     // No stream resources
++    ENOLINK         :: 67;     // Virtual circuit is gone
++    EPROTO          :: 71;     // Protocol error
++    EMULTIHOP       :: 74;     // Multihop attempted
++    EBADMSG         :: 77;     // Bad message
++    EFTYPE          :: 79;     // Inappropriate file type or format
++    ENOSYS          :: 88;     // Function not implemented
++    ENOTEMPTY       :: 90;     // Directory not empty
++    ENAMETOOLONG    :: 91;     // File or path name too long
++    ELOOP           :: 92;     // Too many symbolic links
++    EOPNOTSUPP      :: 95;     // Operation not supported on socket
++    EPFNOSUPPORT    :: 96;     // Protocol family not supported
++    ECONNRESET      :: 104;    // Connection reset by peer
++    ENOBUFS         :: 105;    // No buffer space available
++    EAFNOSUPPORT    :: 106;    // Address family not supported by protocol family
++    EPROTOTYPE      :: 107;    // Protocol wrong type for socket
++    ENOTSOCK        :: 108;    // Socket operation on non-socket
++    ENOPROTOOPT     :: 109;    // Protocol not available
++    ECONNREFUSED    :: 111;    // Connection refused
++    EADDRINUSE      :: 112;    // Address already in use
++    ECONNABORTED    :: 113;    // Software caused connection abort
++    ENETUNREACH     :: 114;    // Network is unreachable
++    ENETDOWN        :: 115;    // Network interface is not configured
++    ETIMEDOUT       :: 116;    // Connection timed out
++    EHOSTDOWN       :: 117;    // Host is down
++    EHOSTUNREACH    :: 118;    // Host is unreachable
++    EINPROGRESS     :: 119;    // Connection already in progress
++    EALREADY        :: 120;    // Socket already connected
++    EDESTADDRREQ    :: 121;    // Destination address required
++    EMSGSIZE        :: 122;    // Message too long
++    EPROTONOSUPPORT :: 123;    // Unknown protocol
++    EADDRNOTAVAIL   :: 125;    // Address not available
++    ENETRESET       :: 126;    // Connection aborted by network
++    EISCONN         :: 127;    // Socket is already connected
++    ENOTCONN        :: 128;    // Socket is not connected
++    ETOOMANYREFS    :: 129;
++    EDQUOT          :: 132;
++    ESTALE          :: 133;
++    ENOTSUP         :: 134;    // Not supported
++    EILSEQ          :: 138;    // Illegal byte sequence
++    EOVERFLOW       :: 139;    // Value too large for defined data type
++    ECANCELED       :: 140;    // Operation canceled
++    ENOTRECOVERABLE :: 141;    // State not recoverable
++    EOWNERDEAD      :: 142;    // Previous owner died
++    EWOULDBLOCK     :: EAGAIN; // Operation would block
+ }
+ 
+ // @header signal.h
+@@ -1112,6 +1458,19 @@ SIGWINCH  :: 28; // window size changes
+     SIGURG   :: 16; // Urgent data is available at a socket.
+     SIGUSR1  :: 30; // User-defined signal 1.
+     SIGUSR2  :: 31; // User-defined signal 2.
++} else #if OS == .NN_SWITCH {
++    SIGBUS   :: 10; // Bus error.
++    SIGCHLD  :: 20; // Child terminated or stopped.
++    SIGCONT  :: 19; // Continue a stopped process.
++    SIGINFO  :: 29; // information request
++    SIGIO    :: 23; // input/output possible signal
++    SIGPOLL  :: 23; // System V name for SIGIO
++    SIGSTOP  :: 17; // Sendable stop signal not from tty.
++    SIGSYS   :: 12; // Bad argument to system call.
++    SIGTSTP  :: 18; // Stop signal from tty.
++    SIGURG   :: 16; // Urgent data is available at a socket.
++    SIGUSR1  :: 30; // User-defined signal 1.
++    SIGUSR2  :: 31; // User-defined signal 2.
+ }
+ 
+ // @header dlfcn.h
+@@ -1156,6 +1515,17 @@ RTLD_NOW  :: 0x2;
+         pw_shell:  *u8;
+         pw_expire:  time_t;
+     }
++} else #if OS == .NN_SWITCH {
++    passwd :: struct {
++        pw_name:    *u8;
++        pw_passwd:  *u8;
++        pw_uid:     uid_t;
++        pw_gid:     gid_t;
++        pw_comment: *u8;
++        pw_gecos:   *u8;
++        pw_dir:     *u8;
++        pw_shell:   *u8;
++    }
+ }
+ 
+ // @header sys/semaphore.h
+@@ -1166,6 +1536,13 @@ RTLD_NOW  :: 0x2;
+     }
+ } else #if OS == .MACOS {
+     sem_t :: s32;
++} else #if OS == .NN_SWITCH {
++    // _LOCK_T and _COND_T defined in autogen'd pthread bindings
++    sem_t :: struct {
++        lock: _LOCK_T;
++        cond: _COND_T;
++        value: u32;
++    }
+ }
+ 
+ // @header sys/signal.h
+@@ -1186,6 +1563,13 @@ RTLD_NOW  :: 0x2;
+         ss_size:  u64;  // signal stack length
+         ss_flags: s32;  // SA_DISABLE and/or SA_ONSTACK
+     }
++} else #if OS == .NN_SWITCH {
++    sigset_t :: u64;
++    stack_t :: struct {
++        ss_sp:   *void;    // signal stack base
++        ss_size:  size_t;  // signal stack length
++        ss_flags: s32;    // SA_DISABLE and/or SA_ONSTACK
++    }
+ }
+ sigval_t :: union {
+     sival_int: s32;
+@@ -1295,6 +1679,19 @@ sigval_t :: union {
+         si_band:   s64;      // Band event for SIGPOLL.
+         __pad: [7] u64;      // Reserved for Future Use.
+     }
++} else #if OS == .NN_SWITCH {
++    sigevent_t :: struct {
++        sigev_notify:            s32;                // Notification type.
++        sigev_signo:             s32;                // Signal number.
++        sigev_value:             sigval_t;           // Signal value.
++        sigev_notify_function:   (sigval_t) #c_call; // Notification function.
++        sigev_notify_attributes: *pthread_attr_t;    // Notification attributes.
++    }
++    siginfo_t :: struct {
++        si_signo: s32;
++        si_code:  s32;
++        sigev_value: sigval_t;
++    }
+ }
+ 
+ sigaction_t :: struct {
+@@ -1338,6 +1735,10 @@ sigaction_t :: struct {
+     SIG_BLOCK   :: 1; // Block specified signal set.
+     SIG_UNBLOCK :: 2; // Unblock specified signal set.
+     SIG_SETMASK :: 3; // Set specified signal set.
++} else #if OS == .NN_SWITCH {
++    SIG_BLOCK   :: 1; // Block specified signal set.
++    SIG_UNBLOCK :: 2; // Unblock specified signal set.
++    SIG_SETMASK :: 0; // Set specified signal set.
+ }
+ 
+ SIG_DFL :: cast(*void) 0;
+@@ -1545,6 +1946,8 @@ SIG_IGN :: cast(*void) 1;
+         st_lspare:  s32;
+         st_qspare:  [2] s64;
+     }
++} else #if OS == .NN_SWITCH {
++    stat_t :: struct {}
+ }
+ 
+ #scope_file
+@@ -2618,7 +3021,10 @@ S_ISSOCK :: inline (mode: mode_t) -> bool { return mode & S_IFMT == S_IFSOCK; }
+     }
+ }
+ 
+-iovec :: struct {
+-    iov_base: *void;
+-    iov_len:  size_t;
++// Defined in autogen'd
++#if OS != .NN_SWITCH {
++    iovec :: struct {
++        iov_base: *void;
++        iov_len:  size_t;
++    }
+ }
+diff --git a/modules/POSIX/bindings/nn_switch/pthread.jai b/modules/POSIX/bindings/nn_switch/pthread.jai
+new file mode 100644
+index 0000000..91dd39f
+--- /dev/null
++++ b/modules/POSIX/bindings/nn_switch/pthread.jai
+@@ -0,0 +1,305 @@
++//
++// This file was auto-generated using the following command:
++//
++// jai generate.jai - -nn_switch -arm64
++//
++
++
++
++SCHED_OTHER :: 0;
++
++SCHED_FIFO :: 1;
++SCHED_RR :: 2;
++
++__LOCK_INITIALIZER :: cast(_LOCK_T)0;
++
++__COND_INITIALIZER :: cast(_COND_T)0;
++
++PTHREAD_SCOPE_PROCESS :: 0;
++PTHREAD_SCOPE_SYSTEM :: 1;
++
++PTHREAD_INHERIT_SCHED :: 1;
++
++PTHREAD_EXPLICIT_SCHED :: 2;
++
++PTHREAD_CREATE_DETACHED :: 0;
++PTHREAD_CREATE_JOINABLE :: 1;
++
++PTHREAD_MUTEX_NORMAL :: 0;
++
++PTHREAD_MUTEX_RECURSIVE :: 1;
++
++PTHREAD_MUTEX_ERRORCHECK :: 2;
++
++PTHREAD_MUTEX_DEFAULT :: 3;
++
++PTHREAD_CANCEL_ENABLE :: 0;
++PTHREAD_CANCEL_DISABLE :: 1;
++
++PTHREAD_CANCEL_DEFERRED :: 0;
++PTHREAD_CANCEL_ASYNCHRONOUS :: 1;
++
++PTHREAD_BARRIER_SERIAL_THREAD :: -1;
++
++_JBLEN :: 22;
++
++sched_param :: struct {
++    sched_priority: s32;
++}
++
++_LOCK_T :: u32;
++
++__lock_t :: struct {
++    lock:       _LOCK_T;
++    thread_tag: u32;
++    counter:    u32;
++}
++
++_LOCK_RECURSIVE_T :: __lock_t;
++
++_COND_T :: u32;
++
++__libc_lock_acquire :: (lock: *_LOCK_T) -> void #foreign libsysbase;
++__libc_lock_acquire_recursive :: (lock: *_LOCK_RECURSIVE_T) -> void #foreign libsysbase;
++__libc_lock_release :: (lock: *_LOCK_T) -> void #foreign libsysbase;
++__libc_lock_release_recursive :: (lock: *_LOCK_RECURSIVE_T) -> void #foreign libsysbase;
++
++__libc_lock_try_acquire :: (lock: *_LOCK_T) -> s32 #foreign libsysbase;
++__libc_lock_try_acquire_recursive :: (lock: *_LOCK_RECURSIVE_T) -> s32 #foreign libsysbase;
++
++__libc_cond_signal :: (cond: *_COND_T) -> s32 #foreign libsysbase;
++__libc_cond_broadcast :: (cond: *_COND_T) -> s32 #foreign libsysbase;
++__libc_cond_wait :: (cond: *_COND_T, lock: *_LOCK_T, timeout_ns: u64) -> s32 #foreign libsysbase;
++__libc_cond_wait_recursive :: (cond: *_COND_T, lock: *_LOCK_RECURSIVE_T, timeout_ns: u64) -> s32 #foreign libsysbase;
++
++__pthread_t :: struct {}
++pthread_t :: *__pthread_t;
++
++pthread_attr_t :: struct {
++    stackaddr:   *void;
++    stacksize:   s32;
++
++    schedparam:  sched_param;
++
++    detachstate: s32;
++}
++
++pthread_mutex_t :: struct {
++    type: s32;
++    union {
++        normal:    _LOCK_T;
++        recursive: _LOCK_RECURSIVE_T;
++    }
++}
++
++pthread_mutexattr_t :: struct {
++    type: s32;
++}
++
++pthread_cond_t :: struct {
++    clock_id: clockid_t;
++    cond:     _COND_T;
++}
++
++pthread_condattr_t :: struct {
++    clock_id: clockid_t;
++}
++
++pthread_key_t :: u32;
++
++pthread_once_t :: struct {
++    status: s32;
++}
++
++pthread_barrier_t :: struct {
++    lock:    _LOCK_T;
++    cond:    _COND_T;
++    reload:  u32;
++    counter: u32;
++    cycle:   u32;
++}
++
++pthread_barrierattr_t :: struct {}
++
++pthread_rwlock_t :: struct {
++    lock:   _LOCK_T;
++    cond_r: _COND_T;
++    cond_w: _COND_T;
++    cnt_r:  u32;
++    #place cnt_r; /*bitfield 30*/ cnt_w:  u32;
++}
++
++pthread_rwlockattr_t :: struct {}
++
++sched_yield :: () -> s32 #foreign libsysbase;
++
++_pthread_cleanup_context :: struct {
++    _routine:    #type (unknown0: *void) -> void #c_call;
++    _arg:        *void;
++    _canceltype: s32;
++    _previous:   *_pthread_cleanup_context;
++}
++
++/* Register Fork Handlers */
++pthread_atfork :: (prepare: #type () -> void #c_call, parent: #type () -> void #c_call, child: #type () -> void #c_call) -> s32 #foreign libsysbase;
++
++/* Mutex Initialization Attributes, P1003.1c/Draft 10, p. 81 */
++pthread_mutexattr_init :: (__attr: *pthread_mutexattr_t) -> s32 #foreign libsysbase;
++pthread_mutexattr_destroy :: (__attr: *pthread_mutexattr_t) -> s32 #foreign libsysbase;
++pthread_mutexattr_getpshared :: (__attr: *pthread_mutexattr_t, __pshared: *s32) -> s32 #foreign libsysbase;
++
++pthread_mutexattr_setpshared :: (__attr: *pthread_mutexattr_t, __pshared: s32) -> s32 #foreign libsysbase;
++
++/* Single UNIX Specification 2 Mutex Attributes types */
++pthread_mutexattr_gettype :: (__attr: *pthread_mutexattr_t, __kind: *s32) -> s32 #foreign libsysbase;
++pthread_mutexattr_settype :: (__attr: *pthread_mutexattr_t, __kind: s32) -> s32 #foreign libsysbase;
++
++/* Initializing and Destroying a Mutex, P1003.1c/Draft 10, p. 87 */
++pthread_mutex_init :: (__mutex: *pthread_mutex_t, __attr: *pthread_mutexattr_t) -> s32 #foreign libsysbase;
++
++pthread_mutex_destroy :: (__mutex: *pthread_mutex_t) -> s32 #foreign libsysbase;
++
++/*  Locking and Unlocking a Mutex, P1003.1c/Draft 10, p. 93
++NOTE: P1003.4b/D8 adds pthread_mutex_timedlock(), p. 29 */
++pthread_mutex_lock :: (__mutex: *pthread_mutex_t) -> s32 #foreign libsysbase;
++pthread_mutex_trylock :: (__mutex: *pthread_mutex_t) -> s32 #foreign libsysbase;
++pthread_mutex_unlock :: (__mutex: *pthread_mutex_t) -> s32 #foreign libsysbase;
++
++/* Condition Variable Initialization Attributes, P1003.1c/Draft 10, p. 96 */
++pthread_condattr_init :: (__attr: *pthread_condattr_t) -> s32 #foreign libsysbase;
++pthread_condattr_destroy :: (__attr: *pthread_condattr_t) -> s32 #foreign libsysbase;
++
++pthread_condattr_getclock :: (__attr: *pthread_condattr_t, __clock_id: *clockid_t) -> s32 #foreign libsysbase;
++
++pthread_condattr_setclock :: (__attr: *pthread_condattr_t, __clock_id: clockid_t) -> s32 #foreign libsysbase;
++
++pthread_condattr_getpshared :: (__attr: *pthread_condattr_t, __pshared: *s32) -> s32 #foreign libsysbase;
++
++pthread_condattr_setpshared :: (__attr: *pthread_condattr_t, __pshared: s32) -> s32 #foreign libsysbase;
++
++/* Initializing and Destroying a Condition Variable, P1003.1c/Draft 10, p. 87 */
++pthread_cond_init :: (__cond: *pthread_cond_t, __attr: *pthread_condattr_t) -> s32 #foreign libsysbase;
++
++pthread_cond_destroy :: (__mutex: *pthread_cond_t) -> s32 #foreign libsysbase;
++
++/* Broadcasting and Signaling a Condition, P1003.1c/Draft 10, p. 101 */
++pthread_cond_signal :: (__cond: *pthread_cond_t) -> s32 #foreign libsysbase;
++pthread_cond_broadcast :: (__cond: *pthread_cond_t) -> s32 #foreign libsysbase;
++
++/* Waiting on a Condition, P1003.1c/Draft 10, p. 105 */
++pthread_cond_wait :: (__cond: *pthread_cond_t, __mutex: *pthread_mutex_t) -> s32 #foreign libsysbase;
++
++pthread_cond_timedwait :: (__cond: *pthread_cond_t, __mutex: *pthread_mutex_t, __abstime: *timespec) -> s32 #foreign libsysbase;
++
++pthread_attr_setschedparam :: (__attr: *pthread_attr_t, __param: *sched_param) -> s32 #foreign libsysbase;
++
++pthread_attr_getschedparam :: (__attr: *pthread_attr_t, __param: *sched_param) -> s32 #foreign libsysbase;
++
++/* Thread Creation Attributes, P1003.1c/Draft 10, p, 140 */
++pthread_attr_init :: (__attr: *pthread_attr_t) -> s32 #foreign libsysbase;
++pthread_attr_destroy :: (__attr: *pthread_attr_t) -> s32 #foreign libsysbase;
++pthread_attr_setstack :: (attr: *pthread_attr_t, __stackaddr: *void, __stacksize: u64) -> s32 #foreign libsysbase;
++
++pthread_attr_getstack :: (attr: *pthread_attr_t, __stackaddr: **void, __stacksize: *u64) -> s32 #foreign libsysbase;
++
++pthread_attr_getstacksize :: (__attr: *pthread_attr_t, __stacksize: *u64) -> s32 #foreign libsysbase;
++
++pthread_attr_setstacksize :: (__attr: *pthread_attr_t, __stacksize: u64) -> s32 #foreign libsysbase;
++pthread_attr_getstackaddr :: (__attr: *pthread_attr_t, __stackaddr: **void) -> s32 #foreign libsysbase;
++
++pthread_attr_setstackaddr :: (__attr: *pthread_attr_t, __stackaddr: *void) -> s32 #foreign libsysbase;
++pthread_attr_getdetachstate :: (__attr: *pthread_attr_t, __detachstate: *s32) -> s32 #foreign libsysbase;
++
++pthread_attr_setdetachstate :: (__attr: *pthread_attr_t, __detachstate: s32) -> s32 #foreign libsysbase;
++pthread_attr_getguardsize :: (__attr: *pthread_attr_t, __guardsize: *u64) -> s32 #foreign libsysbase;
++
++pthread_attr_setguardsize :: (__attr: *pthread_attr_t, __guardsize: u64) -> s32 #foreign libsysbase;
++
++/* Thread Creation, P1003.1c/Draft 10, p. 144 */
++pthread_create :: (__pthread: *pthread_t, __attr: *pthread_attr_t, __start_routine: #type (unknown0: *void) -> *void #c_call, __arg: *void) -> s32 #foreign libsysbase;
++
++/* Wait for Thread Termination, P1003.1c/Draft 10, p. 147 */
++pthread_join :: (__pthread: pthread_t, __value_ptr: **void) -> s32 #foreign libsysbase;
++
++/* Detaching a Thread, P1003.1c/Draft 10, p. 149 */
++pthread_detach :: (__pthread: pthread_t) -> s32 #foreign libsysbase;
++
++/* Thread Termination, p1003.1c/Draft 10, p. 150 */
++pthread_exit :: (__value_ptr: *void) -> void #foreign libsysbase;
++
++/* Get Calling Thread's ID, p1003.1c/Draft 10, p. XXX */
++pthread_self :: () -> pthread_t #foreign libsysbase;
++
++/* Compare Thread IDs, p1003.1c/Draft 10, p. 153 */
++pthread_equal :: (__t1: pthread_t, __t2: pthread_t) -> s32 #foreign libsysbase;
++
++/* Retrieve ID of a Thread's CPU Time Clock */
++pthread_getcpuclockid :: (thread: pthread_t, clock_id: *clockid_t) -> s32 #foreign libsysbase;
++
++/* Get/Set Current Thread's Concurrency Level */
++pthread_setconcurrency :: (new_level: s32) -> s32 #foreign libsysbase;
++pthread_getconcurrency :: () -> s32 #foreign libsysbase;
++
++pthread_once :: (__once_control: *pthread_once_t, __init_routine: #type () -> void #c_call) -> s32 #foreign libsysbase;
++
++/* Thread-Specific Data Key Create, P1003.1c/Draft 10, p. 163 */
++pthread_key_create :: (__key: *pthread_key_t, __destructor: #type (unknown0: *void) -> void #c_call) -> s32 #foreign libsysbase;
++
++/* Thread-Specific Data Management, P1003.1c/Draft 10, p. 165 */
++pthread_setspecific :: (__key: pthread_key_t, __value: *void) -> s32 #foreign libsysbase;
++pthread_getspecific :: (__key: pthread_key_t) -> *void #foreign libsysbase;
++
++/* Thread-Specific Data Key Deletion, P1003.1c/Draft 10, p. 167 */
++pthread_key_delete :: (__key: pthread_key_t) -> s32 #foreign libsysbase;
++
++pthread_cancel :: (__pthread: pthread_t) -> s32 #foreign libsysbase;
++
++/* Setting Cancelability State, P1003.1c/Draft 10, p. 183 */
++pthread_setcancelstate :: (__state: s32, __oldstate: *s32) -> s32 #foreign libsysbase;
++pthread_setcanceltype :: (__type: s32, __oldtype: *s32) -> s32 #foreign libsysbase;
++pthread_testcancel :: () -> void #foreign libsysbase;
++
++/* Establishing Cancellation Handlers, P1003.1c/Draft 10, p. 184 */
++_pthread_cleanup_push :: (_context: *_pthread_cleanup_context, _routine: #type (unknown0: *void) -> void #c_call, _arg: *void) -> void #foreign libsysbase;
++
++_pthread_cleanup_pop :: (_context: *_pthread_cleanup_context, _execute: s32) -> void #foreign libsysbase;
++
++pthread_barrierattr_init :: (__attr: *pthread_barrierattr_t) -> s32 #foreign libsysbase;
++pthread_barrierattr_destroy :: (__attr: *pthread_barrierattr_t) -> s32 #foreign libsysbase;
++pthread_barrierattr_getpshared :: (__attr: *pthread_barrierattr_t, __pshared: *s32) -> s32 #foreign libsysbase;
++
++pthread_barrierattr_setpshared :: (__attr: *pthread_barrierattr_t, __pshared: s32) -> s32 #foreign libsysbase;
++
++pthread_barrier_init :: (__barrier: *pthread_barrier_t, __attr: *pthread_barrierattr_t, __count: u32) -> s32 #foreign libsysbase;
++
++pthread_barrier_destroy :: (__barrier: *pthread_barrier_t) -> s32 #foreign libsysbase;
++pthread_barrier_wait :: (__barrier: *pthread_barrier_t) -> s32 #foreign libsysbase;
++
++pthread_rwlockattr_init :: (__attr: *pthread_rwlockattr_t) -> s32 #foreign libsysbase;
++pthread_rwlockattr_destroy :: (__attr: *pthread_rwlockattr_t) -> s32 #foreign libsysbase;
++pthread_rwlockattr_getpshared :: (__attr: *pthread_rwlockattr_t, __pshared: *s32) -> s32 #foreign libsysbase;
++
++pthread_rwlockattr_setpshared :: (__attr: *pthread_rwlockattr_t, __pshared: s32) -> s32 #foreign libsysbase;
++
++pthread_rwlock_init :: (__rwlock: *pthread_rwlock_t, __attr: *pthread_rwlockattr_t) -> s32 #foreign libsysbase;
++
++pthread_rwlock_destroy :: (__rwlock: *pthread_rwlock_t) -> s32 #foreign libsysbase;
++pthread_rwlock_rdlock :: (__rwlock: *pthread_rwlock_t) -> s32 #foreign libsysbase;
++pthread_rwlock_tryrdlock :: (__rwlock: *pthread_rwlock_t) -> s32 #foreign libsysbase;
++pthread_rwlock_timedrdlock :: (__rwlock: *pthread_rwlock_t, __abstime: *timespec) -> s32 #foreign libsysbase;
++
++pthread_rwlock_unlock :: (__rwlock: *pthread_rwlock_t) -> s32 #foreign libsysbase;
++pthread_rwlock_wrlock :: (__rwlock: *pthread_rwlock_t) -> s32 #foreign libsysbase;
++pthread_rwlock_trywrlock :: (__rwlock: *pthread_rwlock_t) -> s32 #foreign libsysbase;
++pthread_rwlock_timedwrlock :: (__rwlock: *pthread_rwlock_t, __abstime: *timespec) -> s32 #foreign libsysbase;
++
++jmp_buf :: [22] s64;
++
++longjmp :: (__jmpb: *jmp_buf, __retval: s32) -> void #foreign libsysbase;
++
++setjmp :: (__jmpb: *jmp_buf) -> s32 #foreign libsysbase;
++
++#scope_file
++
++libsysbase :: #system_library,no_dll "libsysbase";
++libc :: #system_library,no_dll "libc";
+diff --git a/modules/POSIX/generate.jai b/modules/POSIX/generate.jai
+index 0e7e77a..d7b1e71 100644
+--- a/modules/POSIX/generate.jai
++++ b/modules/POSIX/generate.jai
+@@ -18,6 +18,27 @@ TYPE_REPLACEMENTS_TO_MAKE :: Pair.[
+     Pair.{"__u64",                 "u64"},
+ ];
+ 
++g_devkitpro: string;
++
++find_devkitpro :: () -> string {
++    result: string;
++
++    devkitpro_env := getenv("DEVKITPRO");
++    if devkitpro_env {
++        result = from_c_string(devkitpro_env);
++    }
++    else {
++        if OS == .WINDOWS {
++            result = "C:/devkitPro";
++        } else if (OS == .LINUX) || (OS == .MACOS) {
++            result = "/opt/devkitpro";
++        }
++        log("Warning: The environment variable DEVKITPRO isn't defined, so we don't really know where devkitPro is installed. Going to assume this default path:\n  %", result);
++    }
++
++    return result;
++}
++
+ #if AT_COMPILE_TIME {
+     #run,stallable {
+         set_build_options_dc(.{do_output=false});
+@@ -28,6 +49,10 @@ TYPE_REPLACEMENTS_TO_MAKE :: Pair.[
+         if array_find(args, "-android") {
+             os = .ANDROID;
+         }
++        if array_find(args, "-nn_switch") {
++            os = .NN_SWITCH;
++            g_devkitpro = find_devkitpro();
++        }
+         if array_find(args, "-arm64") {
+             cpu = .ARM64;
+         }
+@@ -50,8 +75,9 @@ TYPE_REPLACEMENTS_TO_MAKE :: Pair.[
+ generate_bindings :: (os: Operating_System_Tag = OS, cpu: CPU_Tag = CPU) -> bool {
+     bindings_directory: string;
+     if os == {
+-        case .LINUX;   bindings_directory = "bindings/linux";
+-        case .MACOS;   bindings_directory = "bindings/macos";
++        case .LINUX;      bindings_directory = "bindings/linux";
++        case .MACOS;      bindings_directory = "bindings/macos";
++        case .NN_SWITCH;  bindings_directory = "bindings/nn_switch";
+         case .ANDROID;
+             if cpu == {
+                 case .X64;   bindings_directory = "bindings/android/x64";
+@@ -62,10 +88,16 @@ generate_bindings :: (os: Operating_System_Tag = OS, cpu: CPU_Tag = CPU) -> bool
+ 
+     make_directory_if_it_does_not_exist(bindings_directory, recursive = true);
+ 
+-    success := generate_base_bindings(os, cpu, bindings_directory);
+-    success &= generate_pthread_bindings(os, cpu, bindings_directory);
+-    success &= generate_resource_bindings(os, cpu, bindings_directory);
+-    success &= generate_sysctl_bindings(os, cpu, bindings_directory);
++    success: bool = true;
++    if os == .NN_SWITCH {
++        // We only need pthread for homebrew Switch.
++        success &= generate_pthread_bindings(os, cpu, bindings_directory);
++    } else {
++        success &= generate_base_bindings(os, cpu, bindings_directory);
++        success &= generate_pthread_bindings(os, cpu, bindings_directory);
++        success &= generate_resource_bindings(os, cpu, bindings_directory);
++        success &= generate_sysctl_bindings(os, cpu, bindings_directory);
++    }
+     return success;
+ }
+ 
+@@ -143,9 +175,19 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+ 
+     if os == .LINUX {
+         array_insert_at(*options.libnames, "libpthread.so.0", 0);
++    } else if os == .NN_SWITCH {
++        array_insert_at(*options.system_library_names, "libsysbase", 0);
+     }
+ 
+-    libc_path := get_libc_paths(os, cpu);
++    libc_path: string;
++    if os == .NN_SWITCH {
++        libc_path = tprint("%/devkitA64/aarch64-none-elf/include", g_devkitpro);
++
++        array_add(*options.libpaths,             tprint("%/devkitA64/aarch64-none-elf/lib", g_devkitpro));
++        array_add(*options.system_library_paths, tprint("%/devkitA64/aarch64-none-elf/lib", g_devkitpro));
++    } else {
++        libc_path = get_libc_paths(os, cpu);
++    }
+ 
+     array_add(*options.source_files,
+         tprint("%/pthread.h", libc_path),
+@@ -188,6 +230,10 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+         "_pthread_types.h",
+         "qos.h",
+         "pthread_spis.h",
++        // Homebrew Switch
++        "machine/setjmp.h",
++        "sys/_pthreadtypes.h",
++        "sys/lock.h",
+     );
+     array_add(*options.system_types_to_include,
+         "__darwin_id_t",
+@@ -199,7 +245,8 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+ }
+ 
+ generate_resource_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_directory: string) -> bool {
+-    if os == .ANDROID return true; // We don’t care about this on ANDROID right now…
++    if os == .ANDROID   return true; // We don’t care about this on ANDROID right now…
++    if os == .NN_SWITCH return true; // ..or homebrew Switch...
+ 
+     output_path := tprint("%/resource.jai", bindings_directory);
+     options := get_common_options(os, cpu);
+@@ -266,6 +313,13 @@ get_common_options :: (os: Operating_System_Tag, cpu: CPU_Tag) -> Generate_Bindi
+                 "-target", target_triple_with_sdk,
+                 "--sysroot", paths.sysroot
+             );
++        case .NN_SWITCH;
++            array_add(*options.extra_clang_arguments, "-nostdinc", "--target=aarch64-nintendo-switch-freestanding", "-march=armv8-a+crc+crypto", "-mtune=cortex-a57");
++
++            // @TODO: Deal with the fact that the GCC version will change over time
++            array_add(*options.system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include", g_devkitpro));
++            array_add(*options.system_include_paths, tprint("%/devkitA64/lib/gcc/aarch64-none-elf/13.2.0/include", g_devkitpro));
++            array_add(*options.system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include/c++/13.2.0", g_devkitpro));
+     }
+ 
+     options.log_stripped_declarations = false;
+@@ -338,9 +392,25 @@ posix_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration_
+     return .RECURSE;
+ }
+ 
++from_c_string :: inline (ptr: *u8) -> string {
++    result: string = ---;
++
++    result.data  = ptr;
++    result.count = 0;
++
++    my_ptr := ptr;
++    while my_ptr.* != 0 {
++        result.count += 1;
++        my_ptr       += 1;
++    }
++
++    return result;
++}
++
+ #import "Android_Toolchain";
+ #import "Basic";
+ #import "Bindings_Generator";
+ #import "Compiler";
+ #import "File";
++#import "POSIX";
+ #import "String";
+diff --git a/modules/POSIX/libc_bindings.jai b/modules/POSIX/libc_bindings.jai
+index e735e72..d32f0dc 100644
+--- a/modules/POSIX/libc_bindings.jai
++++ b/modules/POSIX/libc_bindings.jai
+@@ -28,6 +28,9 @@ endpwent :: () #foreign libc;
+ } else #if OS == .MACOS {
+     // On OSX, errno is #define errno (*__error())
+     __errno_location :: () -> *OS_Error_Code #foreign libc "__error";
++} else #if OS == .NN_SWITCH {
++    // With the homebrew Switch toolchain, errno is #define errno (*__errno())
++    __errno_location :: () -> *OS_Error_Code #foreign libc "__errno";
+ }
+ 
+ #scope_export
+@@ -76,9 +79,11 @@ pipe :: (pipefd: *[2] s32) -> s32 #foreign libc;
+     pipe2 :: (pipefd: *[2] s32, flags: s32) -> s32 #foreign libc;
+ }
+ 
+-shmget :: (key: key_t, size: size_t, shmflg: s32) -> s32 #foreign libc;
+-shm_open :: (name: *u8, oflag: s32, mode: mode_t) -> s32 #foreign librt;
+-shm_unlink :: (name: *u8) -> s32 #foreign librt;
++#if OS != .NN_SWITCH {
++    shmget :: (key: key_t, size: size_t, shmflg: s32) -> s32 #foreign libc;
++    shm_open :: (name: *u8, oflag: s32, mode: mode_t) -> s32 #foreign librt;
++    shm_unlink :: (name: *u8) -> s32 #foreign librt;
++}
+ 
+ getlogin_r :: (buf: *u8, bufsize: size_t) -> s32 #foreign libc;
+ getlogin :: (buf: *u8) -> *u8 #foreign libc;
+@@ -109,6 +114,10 @@ fread  :: (ptr: *void, size: size_t, count: size_t, stream: *FILE) -> size_t #fo
+ fwrite :: (ptr: *void, size: size_t, count: size_t, stream: *FILE) -> size_t #foreign libc;
+ fseek  :: (stream: *FILE, offset: s64, whence: s32) -> s32 #foreign libc;
+ 
++#if OS == .NN_SWITCH {
++    rewind  :: (stream: *FILE) #foreign libc;
++}
++
+ popen  :: (command : *u8, type : *u8) -> *FILE #foreign libc;
+ pclose :: (stream : *FILE) -> s32 #foreign libc;
+ 
+@@ -119,7 +128,9 @@ _remove :: (path: *u8) -> s32 #foreign libc "remove";
+ unlink :: (pathname: *u8) -> s32 #foreign libc;
+ link :: (oldpath: *u8, newpath: *u8) -> s32 #foreign libc;
+ 
+-uname :: (name : *utsname) -> s32 #foreign libc;
++#if OS != .NN_SWITCH {
++    uname :: (name : *utsname) -> s32 #foreign libc;
++}
+ gethostname :: (name: *s8, namelen: size_t) -> s32 #foreign libc;
+ 
+ closedir :: (dirp: *DIR) -> s32 #foreign libc;
+@@ -218,9 +229,15 @@ getppid :: () -> pid_t #foreign libc;
+ 
+ // librt functions
+ // @TODO clock_ functions are not available in OSX prior to 10.12
+-clock_gettime :: (clk: clockid_t, tp: *timespec) -> int #foreign librt;
+-clock_getres  :: (clk: clockid_t, tp: *timespec) -> int #foreign librt;
+-clock_settime :: (clk: clockid_t, tp: *timespec) -> int #foreign librt;
++#if OS == .NN_SWITCH {
++    clock_gettime :: (clk: clockid_t, tp: *timespec) -> int #foreign libnx;
++    clock_getres  :: (clk: clockid_t, tp: *timespec) -> int #foreign libnx;
++    clock_settime :: (clk: clockid_t, tp: *timespec) -> int #foreign libnx;
++} else {
++    clock_gettime :: (clk: clockid_t, tp: *timespec) -> int #foreign librt;
++    clock_getres  :: (clk: clockid_t, tp: *timespec) -> int #foreign librt;
++    clock_settime :: (clk: clockid_t, tp: *timespec) -> int #foreign librt;
++}
+ 
+ // @header fcntl.h
+ 
+@@ -245,18 +262,24 @@ ftruncate :: (fd: s32, length: off_t) -> s32 #foreign libc;
+     stat  :: (path: *u8, buf: *stat_t) -> s32 #foreign libc "stat$INODE64";
+     fstat :: (fd:   s32, buf: *stat_t) -> s32 #foreign libc "fstat$INODE64";
+     lstat :: (path: *u8, buf: *stat_t) -> s32 #foreign libc "lstat$INODE64";
++} else #if OS == .NN_SWITCH {
++    stat  :: (path: *u8, buf: *stat_t) -> s32 #foreign libc "stat$INODE64";
++    fstat :: (fd:   s32, buf: *stat_t) -> s32 #foreign libc "fstat$INODE64";
++    lstat :: (path: *u8, buf: *stat_t) -> s32 #foreign libc "lstat$INODE64";
+ }
+ 
+ // @header aio.h
+ 
+-aio_cancel  :: (fd: s32, aiocbp: *aiocb_t) -> s32 #foreign librt;
+-aio_error   :: (aiocbp: *aiocb_t) -> s32 #foreign librt;
+-aio_fsync   :: (op: s32, aiocbp: *aiocb_t) -> s32 #foreign librt;
+-aio_read    :: (aiocbp: *aiocb_t) -> s32 #foreign librt;
+-aio_return  :: (aiocbp: *aiocb_t) -> ssize_t #foreign librt;
+-aio_suspend :: (aiocblist: **aiocb_t, nent: s32, timeout: *timespec) -> s32 #foreign librt;
+-aio_write   :: (aiocbp: *aiocb_t) -> s32 #foreign librt;
+-lio_listio  :: (mode: s32, aiocblist: **aiocb_t, nent: s32, sigp: *sigevent_t) -> s32 #foreign librt;
++#if OS != .NN_SWITCH {
++    aio_cancel  :: (fd: s32, aiocbp: *aiocb_t) -> s32 #foreign librt;
++    aio_error   :: (aiocbp: *aiocb_t) -> s32 #foreign librt;
++    aio_fsync   :: (op: s32, aiocbp: *aiocb_t) -> s32 #foreign librt;
++    aio_read    :: (aiocbp: *aiocb_t) -> s32 #foreign librt;
++    aio_return  :: (aiocbp: *aiocb_t) -> ssize_t #foreign librt;
++    aio_suspend :: (aiocblist: **aiocb_t, nent: s32, timeout: *timespec) -> s32 #foreign librt;
++    aio_write   :: (aiocbp: *aiocb_t) -> s32 #foreign librt;
++    lio_listio  :: (mode: s32, aiocblist: **aiocb_t, nent: s32, sigp: *sigevent_t) -> s32 #foreign librt;
++}
+ 
+ // @header unistd.h
+ #if OS == .MACOS {
+@@ -282,6 +305,8 @@ libm :: #system_library "libm";
+ #if OS == .LINUX librt :: #system_library "librt";
+ else #if OS == .MACOS librt :: libc;
+ 
++#if OS == .NN_SWITCH libnx :: #system_library "libnx";
++
+ #if OS == .LINUX && !GNU_ENV {
+     libexecinfo :: #system_library "libexecinfo";
+ } else {
+diff --git a/modules/POSIX/module.jai b/modules/POSIX/module.jai
+index 87f0f1a..df5c211 100644
+--- a/modules/POSIX/module.jai
++++ b/modules/POSIX/module.jai
+@@ -4,7 +4,7 @@
+ // don't want to use much from there since we can just directly use the Windows APIs. However,
+ // some types like size_t are commonly used in cross-platform libraries so we may want a way to
+ // access those without pulling in all of the types, constants, and inline functions in POSIX.jai
+-#assert(OS == .LINUX || OS == .ANDROID || OS == .MACOS);
++#assert(OS == .LINUX || OS == .ANDROID || OS == .MACOS || OS == .NN_SWITCH);
+ 
+ errno :: inline () -> OS_Error_Code #no_context {
+     return <<__errno_location();
+@@ -44,3 +44,6 @@ set_errno :: inline (value: OS_Error_Code) #no_context {
+     #load "bindings/macos/resource.jai";
+     #load "bindings/macos/sysctl.jai";
+ }
++ else #if OS == .NN_SWITCH {
++    #load "bindings/nn_switch/pthread.jai";
++}
 diff --git a/modules/Runtime_Support.jai b/modules/Runtime_Support.jai
 index f4e7cf9..f6d0b4d 100644
 --- a/modules/Runtime_Support.jai
@@ -55,3 +1312,1808 @@ index f4e7cf9..f6d0b4d 100644
  }
  
  synch_initted: s32 = 0;
+diff --git a/modules/Socket/generate.jai b/modules/Socket/generate.jai
+index 480fed4..9864ec3 100644
+--- a/modules/Socket/generate.jai
++++ b/modules/Socket/generate.jai
+@@ -28,6 +28,27 @@ TYPE_PREFIXES_TO_OMIT :: string.[
+     "__darwin_",
+ ];
+ 
++g_devkitpro: string;
++
++find_devkitpro :: () -> string {
++    result: string;
++
++    devkitpro_env := getenv("DEVKITPRO");
++    if devkitpro_env {
++        result = from_c_string(devkitpro_env);
++    }
++    else {
++        if OS == .WINDOWS {
++            result = "C:/devkitPro";
++        } else if (OS == .LINUX) || (OS == .MACOS) {
++            result = "/opt/devkitpro";
++        }
++        log("Warning: The environment variable DEVKITPRO isn't defined, so we don't really know where devkitPro is installed. Going to assume this default path:\n  %", result);
++    }
++
++    return result;
++}
++
+ #if AT_COMPILE_TIME {
+     #run,stallable {
+         set_build_options_dc(.{do_output=false});
+@@ -38,6 +59,10 @@ TYPE_PREFIXES_TO_OMIT :: string.[
+         if array_find(args, "-android") {
+             os = .ANDROID;
+         }
++        if array_find(args, "-nn_switch") {
++            os = .NN_SWITCH;
++            g_devkitpro = find_devkitpro();
++        }
+         if array_find(args, "-arm64") {
+             cpu = .ARM64;
+         }
+@@ -86,6 +111,13 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
+                     "--sysroot", paths.sysroot
+                 );
+ 
++                array_add(*options.typedef_prefixes_to_unwrap, "__");
++            case .NN_SWITCH;
++                output_filename = "generated_nn_switch.jai";
++                array_add(*options.system_library_paths, tprint("%/libnx/lib", g_devkitpro));
++                array_add(*options.system_library_paths, tprint("%/devkitA64/aarch64-none-elf/lib", g_devkitpro));
++                array_add(*system_library_names, "libc", "libnx");
++                array_add(*extra_clang_arguments, "-nostdinc", "--target=aarch64-nintendo-switch-freestanding", "-march=armv8-a+crc+crypto", "-mtune=cortex-a57");
+                 array_add(*options.typedef_prefixes_to_unwrap, "__");
+             case;
+                 assert(false);
+@@ -95,38 +127,66 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
+             array_add(*source_files, "winsock2.h", "ws2tcpip.h", "mstcpip.h");
+             array_add(*path_fragments_to_treat_as_non_system_paths, "winsock2.h", "ws2def.h", "inaddr.h", "qos.h", "ws2tcpip.h", "ws2ipdef.h", "in6addr.h", "mstcpip.h");
+         } else {
+-            libc_path, libc_platform_path := get_libc_paths(os, cpu);
+-            // For some reason, we have to use full paths or libclang will not provide _any_ comments for the declaration cursors, for no apparent reason (observed on macOS).
+-            array_add(*source_files,
+-                tprint("%/sys/socket.h",  libc_platform_path),
+-                tprint("%/netinet/in.h",  libc_path),
+-                tprint("%/netinet/tcp.h", libc_path),
+-                tprint("%/netdb.h",       libc_path),
+-                tprint("%/arpa/inet.h",   libc_path),
+-                tprint("%/net/if.h",      libc_path),
+-                tprint("%/ifaddrs.h",     libc_path),
+-            );
+-            if target_os == .ANDROID {
++            libc_path, libc_platform_path: string;
++            if target_os == .NN_SWITCH {
+                 array_add(*source_files,
+-                    tprint("%/sys/select.h",  libc_path), // for fd_set
++                    tprint("%/libnx/include/netdb.h",                 g_devkitpro),
++                    tprint("%/libnx/include/arpa/inet.h",             g_devkitpro),
++                    tprint("%/libnx/include/netinet/in.h",            g_devkitpro),
++                    tprint("%/libnx/include/netinet/tcp.h",           g_devkitpro),
++                    tprint("%/libnx/include/netinet/udp.h",           g_devkitpro),
++                    tprint("%/libnx/include/sys/filio.h",             g_devkitpro),
++                    tprint("%/libnx/include/sys/ioccom.h",            g_devkitpro),
++                    tprint("%/libnx/include/sys/ioctl.h",             g_devkitpro),
++                    tprint("%/libnx/include/sys/_iovec.h",            g_devkitpro),
++                    tprint("%/libnx/include/sys/_sockaddr_storage.h", g_devkitpro),
++                    tprint("%/libnx/include/sys/socket.h",            g_devkitpro),
++                    tprint("%/libnx/include/sys/sockio.h",            g_devkitpro),
++                    tprint("%/libnx/include/sys/sysctl.h",            g_devkitpro),
+                 );
++                array_add(*include_paths, tprint("%/libnx/include", g_devkitpro));
++
++                // @TODO: Deal with the fact that the GCC version will change over time
++                array_add(*system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include", g_devkitpro));
++                array_add(*system_include_paths, tprint("%/devkitA64/lib/gcc/aarch64-none-elf/13.2.0/include", g_devkitpro));
++                array_add(*system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include/c++/13.2.0", g_devkitpro));
+             }
++            else {
++                libc_path, libc_platform_path := get_libc_paths(os, cpu);
+ 
+-            if target_os == .MACOS {
+-                array_add(*path_fragments_to_treat_as_non_system_paths, "net/if_var.h", "netinet6/in6.h");
+-                array_add(*extra_clang_arguments, "-isysroot", get_macos_sdk_path());
+-            } else {
+-                array_add(*path_fragments_to_treat_as_non_system_paths,
+-                    "asm-generic/socket.h",
+-                    "bits/socket.h",
+-                    "bits/socket_type.h",
+-                    "sys/select.h",
+-                    // Android
+-                    "in.h",
+-                    "in6.h",
++                // For some reason, we have to use full paths or libclang will not provide _any_ comments for the declaration cursors, for no apparent reason (observed on macOS).
++                array_add(*source_files,
++                    tprint("%/sys/socket.h",  libc_platform_path),
++                    tprint("%/netinet/in.h",  libc_path),
++                    tprint("%/netinet/tcp.h", libc_path),
++                    tprint("%/netdb.h",       libc_path),
++                    tprint("%/arpa/inet.h",   libc_path),
++                    tprint("%/net/if.h",      libc_path),
++                    tprint("%/ifaddrs.h",     libc_path),
+                 );
++                if target_os == .ANDROID {
++                    array_add(*source_files,
++                        tprint("%/sys/select.h",  libc_path), // for fd_set
++                    );
++                }
++
++                if target_os == .MACOS {
++                    array_add(*path_fragments_to_treat_as_non_system_paths, "net/if_var.h", "netinet6/in6.h");
++                    array_add(*extra_clang_arguments, "-isysroot", get_macos_sdk_path());
++                } else {
++                    array_add(*path_fragments_to_treat_as_non_system_paths,
++                        "asm-generic/socket.h",
++                        "bits/socket.h",
++                        "bits/socket_type.h",
++                        "sys/select.h",
++                        // Android
++                        "in.h",
++                        "in6.h",
++                    );
++                }
+             }
+ 
++
+             array_add(*system_types_to_include,
+                 "SOL_SOCKET",
+                 "SOMAXCONN",
+@@ -161,7 +221,7 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
+             );
+         }
+ 
+-        array_add(*extra_clang_arguments, "-x", "c++");
++        if target_os != .NN_SWITCH  array_add(*extra_clang_arguments, "-x", "c++");
+         // We can't convert AF_ because these values are used on fields and parameters of different sizes.
+         array_add(*generate_enums_from_macros_with_prefixes, "AI_", "MSG_");
+         convert_macro_value_to_enum_callback = sock_convert_macro_value_to_enum_callback;
+@@ -273,11 +333,22 @@ socket_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration
+         type.return_type.hardcoded_jai_string = "OS_Error_Code";
+     }
+ 
++    if decl.name == "fd_set" && decl.kind == .STRUCT {
++        decl_struct := cast(*Struct) decl;
++
++        for decl_struct.declarations {
++            if it.output_name == "__fds_bits" {
++                it.output_name = "fds_bits";
++            }
++        }
++    }
++
+     // Make unnecessary typedefs for enums and structs disappear
+     if (decl.kind == .STRUCT || decl.kind == .ENUM) && decl.output_name.count > 2 && decl.output_name[0] == #char "_" && decl.output_name[1] !=  #char "_" {
+         advance(*decl.output_name);
+     }
+ 
++
+     // Replace integers with their corresponding enum flags, where possible
+     if parent_decl && (parent_decl.kind == .FUNCTION || parent_decl.kind == .STRUCT) && decl.kind == .DECLARATION && decl.type.number_flags {
+         name := decl.name;
+@@ -348,9 +419,25 @@ get_enum_name :: (argument_name: string, parent_name: string) -> string {
+     return "";
+ }
+ 
++from_c_string :: inline (ptr: *u8) -> string {
++    result: string = ---;
++
++    result.data  = ptr;
++    result.count = 0;
++
++    my_ptr := ptr;
++    while my_ptr.* != 0 {
++        result.count += 1;
++        my_ptr       += 1;
++    }
++
++    return result;
++}
++
+ #import "Android_Toolchain";
+ #import "Basic";
+ #import "Bindings_Generator";
+ #import "Compiler";
+ #import "File";
++#import "POSIX";
+ #import "String";
+diff --git a/modules/Socket/generated_nn_switch.jai b/modules/Socket/generated_nn_switch.jai
+new file mode 100644
+index 0000000..bf7af11
+--- /dev/null
++++ b/modules/Socket/generated_nn_switch.jai
+@@ -0,0 +1,1579 @@
++//
++// This file was auto-generated using the following command:
++//
++// jai generate.jai - -nn_switch -arm64
++//
++
++
++
++__BSD_VISIBLE :: 1;
++
++IPPORT_RESERVED :: 1024;
++
++NETDB_INTERNAL :: -1;
++NETDB_SUCCESS :: 0;
++HOST_NOT_FOUND :: 1;
++TRY_AGAIN :: 2;
++NO_RECOVERY :: 3;
++NO_DATA :: 4;
++NO_ADDRESS :: NO_DATA;
++
++EAI_ADDRFAMILY :: 1;
++
++EAI_AGAIN :: 2;
++EAI_BADFLAGS :: 3;
++EAI_FAIL :: 4;
++EAI_FAMILY :: 5;
++EAI_MEMORY :: 6;
++
++EAI_NODATA :: 7;
++
++EAI_NONAME :: 8;
++EAI_SERVICE :: 9;
++EAI_SOCKTYPE :: 10;
++EAI_SYSTEM :: 11;
++EAI_BADHINTS :: 12;
++EAI_PROTOCOL :: 13;
++EAI_OVERFLOW :: 14;
++EAI_MAX :: 15;
++
++AI :: enum_flags u32 {
++    PASSIVE      :: 0x00000001;
++    CANONNAME    :: 0x00000002;
++    NUMERICHOST  :: 0x00000004;
++    NUMERICSERV  :: 0x00000008;
++    MASK         :: PASSIVE | CANONNAME | NUMERICHOST | NUMERICSERV | ADDRCONFIG | ALL | V4MAPPED;
++    ALL          :: 0x00000100;
++    V4MAPPED_CFG :: 0x00000200;
++    ADDRCONFIG   :: 0x00000400;
++    V4MAPPED     :: 0x00000800;
++    DEFAULT      :: V4MAPPED_CFG | ADDRCONFIG;
++
++    AI_PASSIVE      :: PASSIVE;
++    AI_CANONNAME    :: CANONNAME;
++    AI_NUMERICHOST  :: NUMERICHOST;
++    AI_NUMERICSERV  :: NUMERICSERV;
++    AI_MASK         :: MASK;
++    AI_ALL          :: ALL;
++    AI_V4MAPPED_CFG :: V4MAPPED_CFG;
++    AI_ADDRCONFIG   :: ADDRCONFIG;
++    AI_V4MAPPED     :: V4MAPPED;
++    AI_DEFAULT      :: DEFAULT;
++}
++
++NI_MAXHOST :: 1025;
++NI_MAXSERV :: 32;
++
++NI_NOFQDN :: 0x00000001;
++NI_NUMERICHOST :: 0x00000002;
++NI_NAMEREQD :: 0x00000004;
++NI_NUMERICSERV :: 0x00000008;
++NI_DGRAM :: 0x00000010;
++NI_NUMERICSCOPE :: 0x00000020;
++
++IPPROTO :: enum u32 {
++    IP           :: 0;
++    ICMP         :: 1;
++    TCP          :: 6;
++    UDP          :: 17;
++    IPV6         :: 41;
++    RAW          :: 255;
++    HOPOPTS      :: 0;
++    IGMP         :: 2;
++    GGP          :: 3;
++    IPV4         :: 4;
++    IPIP         :: IPV4;
++    ST           :: 7;
++    EGP          :: 8;
++    PIGP         :: 9;
++    RCCMON       :: 10;
++    NVPII        :: 11;
++    PUP          :: 12;
++    ARGUS        :: 13;
++    EMCON        :: 14;
++    XNET         :: 15;
++    CHAOS        :: 16;
++    MUX          :: 18;
++    MEAS         :: 19;
++    HMP          :: 20;
++    PRM          :: 21;
++    IDP          :: 22;
++    TRUNK1       :: 23;
++    TRUNK2       :: 24;
++    LEAF1        :: 25;
++    LEAF2        :: 26;
++    RDP          :: 27;
++    IRTP         :: 28;
++    TP           :: 29;
++    BLT          :: 30;
++    NSP          :: 31;
++    INP          :: 32;
++    SEP          :: 33;
++    _3PC         :: 34;
++    IDPR         :: 35;
++    XTP          :: 36;
++    DDP          :: 37;
++    CMTP         :: 38;
++    TPXX         :: 39;
++    IL           :: 40;
++    SDRP         :: 42;
++    ROUTING      :: 43;
++    FRAGMENT     :: 44;
++    IDRP         :: 45;
++    RSVP         :: 46;
++    GRE          :: 47;
++    MHRP         :: 48;
++    BHA          :: 49;
++    ESP          :: 50;
++    AH           :: 51;
++    INLSP        :: 52;
++    SWIPE        :: 53;
++    NHRP         :: 54;
++    MOBILE       :: 55;
++    TLSP         :: 56;
++    SKIP         :: 57;
++    ICMPV6       :: 58;
++    NONE         :: 59;
++    DSTOPTS      :: 60;
++    AHIP         :: 61;
++    CFTP         :: 62;
++    HELLO        :: 63;
++    SATEXPAK     :: 64;
++    KRYPTOLAN    :: 65;
++    RVD          :: 66;
++    IPPC         :: 67;
++    ADFS         :: 68;
++    SATMON       :: 69;
++    VISA         :: 70;
++    IPCV         :: 71;
++    CPNX         :: 72;
++    CPHB         :: 73;
++    WSN          :: 74;
++    PVP          :: 75;
++    BRSATMON     :: 76;
++    ND           :: 77;
++    WBMON        :: 78;
++    WBEXPAK      :: 79;
++    EON          :: 80;
++    VMTP         :: 81;
++    SVMTP        :: 82;
++    VINES        :: 83;
++    TTP          :: 84;
++    IGP          :: 85;
++    DGP          :: 86;
++    TCF          :: 87;
++    IGRP         :: 88;
++    OSPFIGP      :: 89;
++    SRPC         :: 90;
++    LARP         :: 91;
++    MTP          :: 92;
++    AX25         :: 93;
++    IPEIP        :: 94;
++    MICP         :: 95;
++    SCCSP        :: 96;
++    ETHERIP      :: 97;
++    ENCAP        :: 98;
++    APES         :: 99;
++    GMTP         :: 100;
++    IPCOMP       :: 108;
++    SCTP         :: 132;
++    MH           :: 135;
++    UDPLITE      :: 136;
++    HIP          :: 139;
++    SHIM6        :: 140;
++    PIM          :: 103;
++    CARP         :: 112;
++    PGM          :: 113;
++    MPLS         :: 137;
++    PFSYNC       :: 240;
++    RESERVED_253 :: 253;
++    RESERVED_254 :: 254;
++    OLD_DIVERT   :: 254;
++    MAX          :: 256;
++    DONE         :: 257;
++    DIVERT       :: 258;
++    SEND         :: 259;
++    SPACER       :: 32767;
++
++    IPPROTO_IP           :: IP;
++    IPPROTO_ICMP         :: ICMP;
++    IPPROTO_TCP          :: TCP;
++    IPPROTO_UDP          :: UDP;
++    IPPROTO_IPV6         :: IPV6;
++    IPPROTO_RAW          :: RAW;
++    IPPROTO_HOPOPTS      :: HOPOPTS;
++    IPPROTO_IGMP         :: IGMP;
++    IPPROTO_GGP          :: GGP;
++    IPPROTO_IPV4         :: IPV4;
++    IPPROTO_IPIP         :: IPIP;
++    IPPROTO_ST           :: ST;
++    IPPROTO_EGP          :: EGP;
++    IPPROTO_PIGP         :: PIGP;
++    IPPROTO_RCCMON       :: RCCMON;
++    IPPROTO_NVPII        :: NVPII;
++    IPPROTO_PUP          :: PUP;
++    IPPROTO_ARGUS        :: ARGUS;
++    IPPROTO_EMCON        :: EMCON;
++    IPPROTO_XNET         :: XNET;
++    IPPROTO_CHAOS        :: CHAOS;
++    IPPROTO_MUX          :: MUX;
++    IPPROTO_MEAS         :: MEAS;
++    IPPROTO_HMP          :: HMP;
++    IPPROTO_PRM          :: PRM;
++    IPPROTO_IDP          :: IDP;
++    IPPROTO_TRUNK1       :: TRUNK1;
++    IPPROTO_TRUNK2       :: TRUNK2;
++    IPPROTO_LEAF1        :: LEAF1;
++    IPPROTO_LEAF2        :: LEAF2;
++    IPPROTO_RDP          :: RDP;
++    IPPROTO_IRTP         :: IRTP;
++    IPPROTO_TP           :: TP;
++    IPPROTO_BLT          :: BLT;
++    IPPROTO_NSP          :: NSP;
++    IPPROTO_INP          :: INP;
++    IPPROTO_SEP          :: SEP;
++    IPPROTO_3PC          :: _3PC;
++    IPPROTO_IDPR         :: IDPR;
++    IPPROTO_XTP          :: XTP;
++    IPPROTO_DDP          :: DDP;
++    IPPROTO_CMTP         :: CMTP;
++    IPPROTO_TPXX         :: TPXX;
++    IPPROTO_IL           :: IL;
++    IPPROTO_SDRP         :: SDRP;
++    IPPROTO_ROUTING      :: ROUTING;
++    IPPROTO_FRAGMENT     :: FRAGMENT;
++    IPPROTO_IDRP         :: IDRP;
++    IPPROTO_RSVP         :: RSVP;
++    IPPROTO_GRE          :: GRE;
++    IPPROTO_MHRP         :: MHRP;
++    IPPROTO_BHA          :: BHA;
++    IPPROTO_ESP          :: ESP;
++    IPPROTO_AH           :: AH;
++    IPPROTO_INLSP        :: INLSP;
++    IPPROTO_SWIPE        :: SWIPE;
++    IPPROTO_NHRP         :: NHRP;
++    IPPROTO_MOBILE       :: MOBILE;
++    IPPROTO_TLSP         :: TLSP;
++    IPPROTO_SKIP         :: SKIP;
++    IPPROTO_ICMPV6       :: ICMPV6;
++    IPPROTO_NONE         :: NONE;
++    IPPROTO_DSTOPTS      :: DSTOPTS;
++    IPPROTO_AHIP         :: AHIP;
++    IPPROTO_CFTP         :: CFTP;
++    IPPROTO_HELLO        :: HELLO;
++    IPPROTO_SATEXPAK     :: SATEXPAK;
++    IPPROTO_KRYPTOLAN    :: KRYPTOLAN;
++    IPPROTO_RVD          :: RVD;
++    IPPROTO_IPPC         :: IPPC;
++    IPPROTO_ADFS         :: ADFS;
++    IPPROTO_SATMON       :: SATMON;
++    IPPROTO_VISA         :: VISA;
++    IPPROTO_IPCV         :: IPCV;
++    IPPROTO_CPNX         :: CPNX;
++    IPPROTO_CPHB         :: CPHB;
++    IPPROTO_WSN          :: WSN;
++    IPPROTO_PVP          :: PVP;
++    IPPROTO_BRSATMON     :: BRSATMON;
++    IPPROTO_ND           :: ND;
++    IPPROTO_WBMON        :: WBMON;
++    IPPROTO_WBEXPAK      :: WBEXPAK;
++    IPPROTO_EON          :: EON;
++    IPPROTO_VMTP         :: VMTP;
++    IPPROTO_SVMTP        :: SVMTP;
++    IPPROTO_VINES        :: VINES;
++    IPPROTO_TTP          :: TTP;
++    IPPROTO_IGP          :: IGP;
++    IPPROTO_DGP          :: DGP;
++    IPPROTO_TCF          :: TCF;
++    IPPROTO_IGRP         :: IGRP;
++    IPPROTO_OSPFIGP      :: OSPFIGP;
++    IPPROTO_SRPC         :: SRPC;
++    IPPROTO_LARP         :: LARP;
++    IPPROTO_MTP          :: MTP;
++    IPPROTO_AX25         :: AX25;
++    IPPROTO_IPEIP        :: IPEIP;
++    IPPROTO_MICP         :: MICP;
++    IPPROTO_SCCSP        :: SCCSP;
++    IPPROTO_ETHERIP      :: ETHERIP;
++    IPPROTO_ENCAP        :: ENCAP;
++    IPPROTO_APES         :: APES;
++    IPPROTO_GMTP         :: GMTP;
++    IPPROTO_IPCOMP       :: IPCOMP;
++    IPPROTO_SCTP         :: SCTP;
++    IPPROTO_MH           :: MH;
++    IPPROTO_UDPLITE      :: UDPLITE;
++    IPPROTO_HIP          :: HIP;
++    IPPROTO_SHIM6        :: SHIM6;
++    IPPROTO_PIM          :: PIM;
++    IPPROTO_CARP         :: CARP;
++    IPPROTO_PGM          :: PGM;
++    IPPROTO_MPLS         :: MPLS;
++    IPPROTO_PFSYNC       :: PFSYNC;
++    IPPROTO_RESERVED_253 :: RESERVED_253;
++    IPPROTO_RESERVED_254 :: RESERVED_254;
++    IPPROTO_OLD_DIVERT   :: OLD_DIVERT;
++    IPPROTO_MAX          :: MAX;
++    IPPROTO_DONE         :: DONE;
++    IPPROTO_DIVERT       :: DIVERT;
++    IPPROTO_SEND         :: SEND;
++    IPPROTO_SPACER       :: SPACER;
++}
++
++INADDR_ANY :: cast(in_addr_t)0x00000000;
++INADDR_BROADCAST :: cast(in_addr_t)0xffffffff;
++
++_SS_MAXSIZE :: 128;
++
++INET_ADDRSTRLEN :: 16;
++
++IPPORT_EPHEMERALFIRST :: 10000;
++IPPORT_EPHEMERALLAST :: 65535;
++
++IPPORT_HIFIRSTAUTO :: 49152;
++IPPORT_HILASTAUTO :: 65535;
++
++IPPORT_RESERVEDSTART :: 600;
++
++IPPORT_MAX :: 65535;
++
++IN_CLASSA_NET :: 0xff000000;
++IN_CLASSA_NSHIFT :: 24;
++IN_CLASSA_HOST :: 0x00ffffff;
++IN_CLASSA_MAX :: 128;
++
++IN_CLASSB_NET :: 0xffff0000;
++IN_CLASSB_NSHIFT :: 16;
++IN_CLASSB_HOST :: 0x0000ffff;
++IN_CLASSB_MAX :: 65536;
++
++IN_CLASSC_NET :: 0xffffff00;
++IN_CLASSC_NSHIFT :: 8;
++IN_CLASSC_HOST :: 0x000000ff;
++
++IN_CLASSD_NET :: 0xf0000000;
++IN_CLASSD_NSHIFT :: 28;
++IN_CLASSD_HOST :: 0x0fffffff;
++
++INADDR_LOOPBACK :: cast(in_addr_t)0x7f000001;
++INADDR_NONE :: cast(in_addr_t)0xffffffff;
++
++INADDR_UNSPEC_GROUP :: cast(in_addr_t)0xe0000000;
++INADDR_ALLHOSTS_GROUP :: cast(in_addr_t)0xe0000001;
++INADDR_ALLRTRS_GROUP :: cast(in_addr_t)0xe0000002;
++INADDR_ALLRPTS_GROUP :: cast(in_addr_t)0xe0000016;
++INADDR_CARP_GROUP :: cast(in_addr_t)0xe0000012;
++INADDR_PFSYNC_GROUP :: cast(in_addr_t)0xe00000f0;
++INADDR_ALLMDNS_GROUP :: cast(in_addr_t)0xe00000fb;
++INADDR_MAX_LOCAL_GROUP :: cast(in_addr_t)0xe00000ff;
++
++IN_LOOPBACKNET :: 127;
++
++IN_RFC3021_MASK :: cast(in_addr_t)0xfffffffe;
++
++IP_OPTIONS :: 1;
++IP_HDRINCL :: 2;
++IP_TOS :: 3;
++IP_TTL :: 4;
++IP_RECVOPTS :: 5;
++IP_RECVRETOPTS :: 6;
++IP_RECVDSTADDR :: 7;
++IP_SENDSRCADDR :: IP_RECVDSTADDR;
++IP_RETOPTS :: 8;
++IP_MULTICAST_IF :: 9;
++
++IP_MULTICAST_TTL :: 10;
++IP_MULTICAST_LOOP :: 11;
++IP_ADD_MEMBERSHIP :: 12;
++IP_DROP_MEMBERSHIP :: 13;
++IP_MULTICAST_VIF :: 14;
++IP_RSVP_ON :: 15;
++IP_RSVP_OFF :: 16;
++IP_RSVP_VIF_ON :: 17;
++IP_RSVP_VIF_OFF :: 18;
++IP_PORTRANGE :: 19;
++IP_RECVIF :: 20;
++
++IP_IPSEC_POLICY :: 21;
++
++IP_ONESBCAST :: 23;
++IP_BINDANY :: 24;
++IP_BINDMULTI :: 25;
++IP_RSS_LISTEN_BUCKET :: 26;
++IP_ORIGDSTADDR :: 27;
++IP_RECVORIGDSTADDR :: IP_ORIGDSTADDR;
++
++IP_FW_TABLE_ADD :: 40;
++IP_FW_TABLE_DEL :: 41;
++IP_FW_TABLE_FLUSH :: 42;
++IP_FW_TABLE_GETSIZE :: 43;
++IP_FW_TABLE_LIST :: 44;
++
++IP_FW3 :: 48;
++IP_DUMMYNET3 :: 49;
++
++IP_FW_ADD :: 50;
++IP_FW_DEL :: 51;
++IP_FW_FLUSH :: 52;
++IP_FW_ZERO :: 53;
++IP_FW_GET :: 54;
++IP_FW_RESETLOG :: 55;
++
++IP_FW_NAT_CFG :: 56;
++IP_FW_NAT_DEL :: 57;
++IP_FW_NAT_GET_CONFIG :: 58;
++IP_FW_NAT_GET_LOG :: 59;
++
++IP_DUMMYNET_CONFIGURE :: 60;
++IP_DUMMYNET_DEL :: 61;
++IP_DUMMYNET_FLUSH :: 62;
++IP_DUMMYNET_GET :: 64;
++
++IP_RECVTTL :: 65;
++IP_MINTTL :: 66;
++IP_DONTFRAG :: 67;
++IP_RECVTOS :: 68;
++
++IP_ADD_SOURCE_MEMBERSHIP :: 70;
++IP_DROP_SOURCE_MEMBERSHIP :: 71;
++IP_BLOCK_SOURCE :: 72;
++IP_UNBLOCK_SOURCE :: 73;
++
++IP_MSFILTER :: 74;
++
++MCAST_JOIN_GROUP :: 80;
++MCAST_LEAVE_GROUP :: 81;
++MCAST_JOIN_SOURCE_GROUP :: 82;
++MCAST_LEAVE_SOURCE_GROUP :: 83;
++MCAST_BLOCK_SOURCE :: 84;
++MCAST_UNBLOCK_SOURCE :: 85;
++
++IP_FLOWID :: 90;
++IP_FLOWTYPE :: 91;
++IP_RSSBUCKETID :: 92;
++IP_RECVFLOWID :: 93;
++IP_RECVRSSBUCKETID :: 94;
++
++IP_DEFAULT_MULTICAST_TTL :: 1;
++IP_DEFAULT_MULTICAST_LOOP :: 1;
++
++IP_MIN_MEMBERSHIPS :: 31;
++IP_MAX_MEMBERSHIPS :: 4095;
++IP_MAX_SOURCE_FILTER :: 1024;
++
++IP_MAX_GROUP_SRC_FILTER :: 512;
++IP_MAX_SOCK_SRC_FILTER :: 128;
++IP_MAX_SOCK_MUTE_FILTER :: 128;
++
++MCAST_UNDEFINED :: 0;
++MCAST_INCLUDE :: 1;
++MCAST_EXCLUDE :: 2;
++
++IP_PORTRANGE_DEFAULT :: 0;
++IP_PORTRANGE_HIGH :: 1;
++IP_PORTRANGE_LOW :: 2;
++
++IPCTL_FORWARDING :: 1;
++IPCTL_SENDREDIRECTS :: 2;
++IPCTL_DEFTTL :: 3;
++
++IPCTL_SOURCEROUTE :: 8;
++IPCTL_DIRECTEDBROADCAST :: 9;
++IPCTL_INTRQMAXLEN :: 10;
++IPCTL_INTRQDROPS :: 11;
++IPCTL_STATS :: 12;
++IPCTL_ACCEPTSOURCEROUTE :: 13;
++IPCTL_FASTFORWARDING :: 14;
++
++IPCTL_GIF_TTL :: 16;
++IPCTL_INTRDQMAXLEN :: 17;
++IPCTL_INTRDQDROPS :: 18;
++
++INET6_ADDRSTRLEN :: 46;
++
++IPV6_UNICAST_HOPS :: 4;
++IPV6_MULTICAST_IF :: 9;
++IPV6_MULTICAST_HOPS :: 10;
++IPV6_MULTICAST_LOOP :: 11;
++IPV6_JOIN_GROUP :: 12;
++IPV6_LEAVE_GROUP :: 13;
++IPV6_PORTRANGE :: 14;
++IPV6_V6ONLY :: 27;
++
++__IPV6_ADDR_SCOPE_NODELOCAL :: 0x01;
++__IPV6_ADDR_SCOPE_INTFACELOCAL :: 0x01;
++__IPV6_ADDR_SCOPE_LINKLOCAL :: 0x02;
++__IPV6_ADDR_SCOPE_SITELOCAL :: 0x05;
++__IPV6_ADDR_SCOPE_ORGLOCAL :: 0x08;
++__IPV6_ADDR_SCOPE_GLOBAL :: 0x0e;
++
++tcp6_seq :: tcp_seq;
++tcp6hdr :: tcphdr;
++
++TH_FIN :: 0x01;
++TH_SYN :: 0x02;
++TH_RST :: 0x04;
++TH_PUSH :: 0x08;
++TH_ACK :: 0x10;
++TH_URG :: 0x20;
++TH_ECE :: 0x40;
++TH_CWR :: 0x80;
++TH_FLAGS :: TH_FIN|TH_SYN|TH_RST|TH_PUSH|TH_ACK|TH_URG|TH_ECE|TH_CWR;
++PRINT_TH_FLAGS :: "\20\1FIN\2SYN\3RST\4PUSH\5ACK\6URG\7ECE\10CWR";
++
++TCPOPT_EOL :: 0;
++TCPOLEN_EOL :: 1;
++TCPOPT_PAD :: 0;
++TCPOLEN_PAD :: 1;
++TCPOPT_NOP :: 1;
++TCPOLEN_NOP :: 1;
++TCPOPT_MAXSEG :: 2;
++TCPOLEN_MAXSEG :: 4;
++TCPOPT_WINDOW :: 3;
++TCPOLEN_WINDOW :: 3;
++TCPOPT_SACK_PERMITTED :: 4;
++TCPOLEN_SACK_PERMITTED :: 2;
++TCPOPT_SACK :: 5;
++TCPOLEN_SACKHDR :: 2;
++TCPOLEN_SACK :: 8;
++TCPOPT_TIMESTAMP :: 8;
++TCPOLEN_TIMESTAMP :: 10;
++TCPOLEN_TSTAMP_APPA :: TCPOLEN_TIMESTAMP+2;
++TCPOPT_SIGNATURE :: 19;
++TCPOLEN_SIGNATURE :: 18;
++TCPOPT_FAST_OPEN :: 34;
++TCPOLEN_FAST_OPEN_EMPTY :: 2;
++TCPOLEN_FAST_OPEN_MIN :: 6;
++TCPOLEN_FAST_OPEN_MAX :: 18;
++
++MAX_SACK_BLKS :: 6;
++TCP_MAX_SACK :: 4;
++
++TCP_MSS :: 536;
++TCP6_MSS :: 1220;
++
++TCP_MINMSS :: 216;
++
++TCP_MAXWIN :: 65535;
++TTCP_CLIENT_SND_WND :: 4096;
++
++TCP_MAX_WINSHIFT :: 14;
++
++TCP_MAXBURST :: 4;
++
++TCP_MAXHLEN :: 0xf<<2;
++
++TCP_NODELAY :: 1;
++
++TCP_MAXSEG :: 2;
++TCP_NOPUSH :: 4;
++TCP_NOOPT :: 8;
++TCP_MD5SIG :: 16;
++TCP_INFO :: 32;
++TCP_CONGESTION :: 64;
++TCP_CCALGOOPT :: 65;
++TCP_KEEPINIT :: 128;
++TCP_KEEPIDLE :: 256;
++TCP_KEEPINTVL :: 512;
++TCP_KEEPCNT :: 1024;
++TCP_FASTOPEN :: 1025;
++TCP_PCAP_OUT :: 2048;
++TCP_PCAP_IN :: 4096;
++TCP_FUNCTION_BLK :: 8192;
++
++TCP_VENDOR :: SO_VENDOR;
++
++TCP_CA_NAME_MAX :: 16;
++
++TCPI_OPT_TIMESTAMPS :: 0x01;
++TCPI_OPT_SACK :: 0x02;
++TCPI_OPT_WSCALE :: 0x04;
++TCPI_OPT_ECN :: 0x08;
++TCPI_OPT_TOE :: 0x10;
++
++TCP_FUNCTION_NAME_LEN_MAX :: 32;
++
++SOCK :: enum u32 {
++    STREAM    :: 1;
++    DGRAM     :: 2;
++    RAW       :: 3;
++    RDM       :: 4;
++    SEQPACKET :: 5;
++    CLOEXEC   :: 0x10000000;
++    NONBLOCK  :: 0x20000000;
++
++    SOCK_STREAM    :: STREAM;
++    SOCK_DGRAM     :: DGRAM;
++    SOCK_RAW       :: RAW;
++    SOCK_RDM       :: RDM;
++    SOCK_SEQPACKET :: SEQPACKET;
++    SOCK_CLOEXEC   :: CLOEXEC;
++    SOCK_NONBLOCK  :: NONBLOCK;
++}
++
++SO_DEBUG :: 0x0001;
++SO_ACCEPTCONN :: 0x0002;
++SO_REUSEADDR :: 0x0004;
++SO_KEEPALIVE :: 0x0008;
++SO_DONTROUTE :: 0x0010;
++SO_BROADCAST :: 0x0020;
++
++SO_USELOOPBACK :: 0x0040;
++
++SO_LINGER :: 0x0080;
++SO_OOBINLINE :: 0x0100;
++
++SO_REUSEPORT :: 0x0200;
++SO_TIMESTAMP :: 0x0400;
++SO_NOSIGPIPE :: 0x0800;
++SO_ACCEPTFILTER :: 0x1000;
++SO_BINTIME :: 0x2000;
++
++SO_NO_OFFLOAD :: 0x4000;
++SO_NO_DDP :: 0x8000;
++
++SO_SNDBUF :: 0x1001;
++SO_RCVBUF :: 0x1002;
++SO_SNDLOWAT :: 0x1003;
++SO_RCVLOWAT :: 0x1004;
++SO_SNDTIMEO :: 0x1005;
++SO_RCVTIMEO :: 0x1006;
++SO_ERROR :: 0x1007;
++SO_TYPE :: 0x1008;
++
++SO_LABEL :: 0x1009;
++SO_PEERLABEL :: 0x1010;
++SO_LISTENQLIMIT :: 0x1011;
++SO_LISTENQLEN :: 0x1012;
++SO_LISTENINCQLEN :: 0x1013;
++SO_SETFIB :: 0x1014;
++SO_USER_COOKIE :: 0x1015;
++SO_PROTOCOL :: 0x1016;
++SO_PROTOTYPE :: SO_PROTOCOL;
++SO_TS_CLOCK :: 0x1017;
++SO_MAX_PACING_RATE :: 0x1018;
++
++SO_TS_REALTIME_MICRO :: 0;
++SO_TS_BINTIME :: 1;
++SO_TS_REALTIME :: 2;
++SO_TS_MONOTONIC :: 3;
++SO_TS_DEFAULT :: SO_TS_REALTIME_MICRO;
++SO_TS_CLOCK_MAX :: SO_TS_MONOTONIC;
++
++SO_VENDOR :: 0x80000000;
++
++SOL_SOCKET :: 0xffff;
++
++AF_UNSPEC :: 0;
++
++AF_LOCAL :: AF_UNIX;
++
++AF_UNIX :: 1;
++AF_INET :: 2;
++
++AF_IMPLINK :: 3;
++AF_PUP :: 4;
++AF_CHAOS :: 5;
++AF_NETBIOS :: 6;
++AF_ISO :: 7;
++AF_OSI :: AF_ISO;
++AF_ECMA :: 8;
++AF_DATAKIT :: 9;
++AF_CCITT :: 10;
++AF_SNA :: 11;
++AF_DECnet :: 12;
++AF_DLI :: 13;
++AF_LAT :: 14;
++AF_HYLINK :: 15;
++AF_APPLETALK :: 16;
++AF_ROUTE :: 17;
++AF_LINK :: 18;
++pseudo_AF_XTP :: 19;
++AF_COIP :: 20;
++AF_CNT :: 21;
++pseudo_AF_RTIP :: 22;
++AF_IPX :: 23;
++AF_SIP :: 24;
++pseudo_AF_PIP :: 25;
++AF_ISDN :: 26;
++AF_E164 :: AF_ISDN;
++pseudo_AF_KEY :: 27;
++
++AF_INET6 :: 28;
++
++AF_NATM :: 29;
++AF_ATM :: 30;
++pseudo_AF_HDRCMPLT :: 31;
++
++AF_NETGRAPH :: 32;
++AF_SLOW :: 33;
++AF_SCLUSTER :: 34;
++AF_ARP :: 35;
++AF_BLUETOOTH :: 36;
++AF_IEEE80211 :: 37;
++AF_INET_SDP :: 40;
++AF_INET6_SDP :: 42;
++AF_MAX :: 42;
++
++AF_VENDOR00 :: 39;
++AF_VENDOR01 :: 41;
++AF_VENDOR02 :: 43;
++AF_VENDOR03 :: 45;
++AF_VENDOR04 :: 47;
++AF_VENDOR05 :: 49;
++AF_VENDOR06 :: 51;
++AF_VENDOR07 :: 53;
++AF_VENDOR08 :: 55;
++AF_VENDOR09 :: 57;
++AF_VENDOR10 :: 59;
++AF_VENDOR11 :: 61;
++AF_VENDOR12 :: 63;
++AF_VENDOR13 :: 65;
++AF_VENDOR14 :: 67;
++AF_VENDOR15 :: 69;
++AF_VENDOR16 :: 71;
++AF_VENDOR17 :: 73;
++AF_VENDOR18 :: 75;
++AF_VENDOR19 :: 77;
++AF_VENDOR20 :: 79;
++AF_VENDOR21 :: 81;
++AF_VENDOR22 :: 83;
++AF_VENDOR23 :: 85;
++AF_VENDOR24 :: 87;
++AF_VENDOR25 :: 89;
++AF_VENDOR26 :: 91;
++AF_VENDOR27 :: 93;
++AF_VENDOR28 :: 95;
++AF_VENDOR29 :: 97;
++AF_VENDOR30 :: 99;
++AF_VENDOR31 :: 101;
++AF_VENDOR32 :: 103;
++AF_VENDOR33 :: 105;
++AF_VENDOR34 :: 107;
++AF_VENDOR35 :: 109;
++AF_VENDOR36 :: 111;
++AF_VENDOR37 :: 113;
++AF_VENDOR38 :: 115;
++AF_VENDOR39 :: 117;
++AF_VENDOR40 :: 119;
++AF_VENDOR41 :: 121;
++AF_VENDOR42 :: 123;
++AF_VENDOR43 :: 125;
++AF_VENDOR44 :: 127;
++AF_VENDOR45 :: 129;
++AF_VENDOR46 :: 131;
++AF_VENDOR47 :: 133;
++
++SOCK_MAXADDRLEN :: 255;
++
++PF_UNSPEC :: AF_UNSPEC;
++PF_LOCAL :: AF_LOCAL;
++PF_UNIX :: PF_LOCAL;
++PF_INET :: AF_INET;
++PF_IMPLINK :: AF_IMPLINK;
++PF_PUP :: AF_PUP;
++PF_CHAOS :: AF_CHAOS;
++PF_NETBIOS :: AF_NETBIOS;
++PF_ISO :: AF_ISO;
++PF_OSI :: AF_ISO;
++PF_ECMA :: AF_ECMA;
++PF_DATAKIT :: AF_DATAKIT;
++PF_CCITT :: AF_CCITT;
++PF_SNA :: AF_SNA;
++PF_DECnet :: AF_DECnet;
++PF_DLI :: AF_DLI;
++PF_LAT :: AF_LAT;
++PF_HYLINK :: AF_HYLINK;
++PF_APPLETALK :: AF_APPLETALK;
++PF_ROUTE :: AF_ROUTE;
++PF_LINK :: AF_LINK;
++PF_XTP :: pseudo_AF_XTP;
++PF_COIP :: AF_COIP;
++PF_CNT :: AF_CNT;
++PF_SIP :: AF_SIP;
++PF_IPX :: AF_IPX;
++PF_RTIP :: pseudo_AF_RTIP;
++PF_PIP :: pseudo_AF_PIP;
++PF_ISDN :: AF_ISDN;
++PF_KEY :: pseudo_AF_KEY;
++PF_INET6 :: AF_INET6;
++PF_NATM :: AF_NATM;
++PF_ATM :: AF_ATM;
++PF_NETGRAPH :: AF_NETGRAPH;
++PF_SLOW :: AF_SLOW;
++PF_SCLUSTER :: AF_SCLUSTER;
++PF_ARP :: AF_ARP;
++PF_BLUETOOTH :: AF_BLUETOOTH;
++PF_IEEE80211 :: AF_IEEE80211;
++PF_INET_SDP :: AF_INET_SDP;
++PF_INET6_SDP :: AF_INET6_SDP;
++
++PF_MAX :: AF_MAX;
++
++NET_RT_DUMP :: 1;
++NET_RT_FLAGS :: 2;
++NET_RT_IFLIST :: 3;
++NET_RT_IFMALIST :: 4;
++NET_RT_IFLISTL :: 5;
++
++SOMAXCONN :: 128;
++
++MSG :: enum_flags s32 {
++    OOB          :: 0x00000001;
++    PEEK         :: 0x00000002;
++    DONTROUTE    :: 0x00000004;
++    EOR          :: 0x00000008;
++    TRUNC        :: 0x00000010;
++    CTRUNC       :: 0x00000020;
++    WAITALL      :: 0x00000040;
++    DONTWAIT     :: 0x00000080;
++    EOF          :: 0x00000100;
++    NOTIFICATION :: 0x00002000;
++    NBIO         :: 0x00004000;
++    COMPAT       :: 0x00008000;
++    NOSIGNAL     :: 0x00020000;
++    CMSG_CLOEXEC :: 0x00040000;
++    WAITFORONE   :: 0x00080000;
++
++    MSG_OOB          :: OOB;
++    MSG_PEEK         :: PEEK;
++    MSG_DONTROUTE    :: DONTROUTE;
++    MSG_EOR          :: EOR;
++    MSG_TRUNC        :: TRUNC;
++    MSG_CTRUNC       :: CTRUNC;
++    MSG_WAITALL      :: WAITALL;
++    MSG_DONTWAIT     :: DONTWAIT;
++    MSG_EOF          :: EOF;
++    MSG_NOTIFICATION :: NOTIFICATION;
++    MSG_NBIO         :: NBIO;
++    MSG_COMPAT       :: COMPAT;
++    MSG_NOSIGNAL     :: NOSIGNAL;
++    MSG_CMSG_CLOEXEC :: CMSG_CLOEXEC;
++    MSG_WAITFORONE   :: WAITFORONE;
++}
++
++SCM :: enum u32 {
++    RIGHTS    :: 0x01;
++    TIMESTAMP :: 0x02;
++    CREDS     :: 0x03;
++    BINTIME   :: 0x04;
++    REALTIME  :: 0x05;
++    MONOTONIC :: 0x06;
++    TIME_INFO :: 0x07;
++
++    SCM_RIGHTS    :: RIGHTS;
++    SCM_TIMESTAMP :: TIMESTAMP;
++    SCM_CREDS     :: CREDS;
++    SCM_BINTIME   :: BINTIME;
++    SCM_REALTIME  :: REALTIME;
++    SCM_MONOTONIC :: MONOTONIC;
++    SCM_TIME_INFO :: TIME_INFO;
++}
++
++ST_INFO_HW :: 0x0001;
++ST_INFO_HW_HPREC :: 0x0002;
++
++SHUT :: enum u32 {
++    RD   :: 0;
++    WR   :: 1;
++    RDWR :: 2;
++
++    SHUT_RD   :: RD;
++    SHUT_WR   :: WR;
++    SHUT_RDWR :: RDWR;
++}
++
++PRU_FLUSH_RD :: xx SHUT.RD;
++PRU_FLUSH_WR :: xx SHUT.WR;
++PRU_FLUSH_RDWR :: xx SHUT.RDWR;
++
++SF_NODISKIO :: 0x00000001;
++SF_MNOWAIT :: 0x00000002;
++SF_SYNC :: 0x00000004;
++SF_USER_READAHEAD :: 0x00000008;
++SF_NOCACHE :: 0x00000010;
++
++UDP_ENCAP :: 1;
++
++UDP_VENDOR :: SO_VENDOR;
++
++UDP_ENCAP_ESPINUDP_NON_IKE :: 1;
++UDP_ENCAP_ESPINUDP :: 2;
++
++UDP_ENCAP_ESPINUDP_PORT :: 500;
++
++UDP_ENCAP_ESPINUDP_MAXFRAGLEN :: 552;
++
++IOCPARM_SHIFT :: 13;
++IOCPARM_MASK :: (1 << IOCPARM_SHIFT) - 1;
++
++IOCPARM_MAX :: 1 << IOCPARM_SHIFT;
++IOC_VOID :: 0x20000000;
++IOC_OUT :: 0x40000000;
++IOC_IN :: 0x80000000;
++IOC_INOUT :: IOC_IN|IOC_OUT;
++IOC_DIRMASK :: IOC_VOID|IOC_OUT|IOC_IN;
++
++CTL_MAXNAME :: 24;
++
++CTLTYPE :: 0xf;
++CTLTYPE_NODE :: 1;
++CTLTYPE_INT :: 2;
++CTLTYPE_STRING :: 3;
++CTLTYPE_S64 :: 4;
++CTLTYPE_OPAQUE :: 5;
++CTLTYPE_STRUCT :: CTLTYPE_OPAQUE;
++CTLTYPE_UINT :: 6;
++CTLTYPE_LONG :: 7;
++CTLTYPE_ULONG :: 8;
++CTLTYPE_U64 :: 9;
++CTLTYPE_U8 :: 0xa;
++CTLTYPE_U16 :: 0xb;
++CTLTYPE_S8 :: 0xc;
++CTLTYPE_S16 :: 0xd;
++CTLTYPE_S32 :: 0xe;
++CTLTYPE_U32 :: 0xf;
++
++CTLFLAG_RD :: 0x80000000;
++CTLFLAG_WR :: 0x40000000;
++CTLFLAG_RW :: CTLFLAG_RD|CTLFLAG_WR;
++CTLFLAG_DORMANT :: 0x20000000;
++CTLFLAG_ANYBODY :: 0x10000000;
++CTLFLAG_SECURE :: 0x08000000;
++CTLFLAG_PRISON :: 0x04000000;
++CTLFLAG_DYN :: 0x02000000;
++CTLFLAG_SKIP :: 0x01000000;
++CTLMASK_SECURE :: 0x00F00000;
++CTLFLAG_TUN :: 0x00080000;
++CTLFLAG_RDTUN :: CTLFLAG_RD|CTLFLAG_TUN;
++CTLFLAG_RWTUN :: CTLFLAG_RW|CTLFLAG_TUN;
++CTLFLAG_MPSAFE :: 0x00040000;
++CTLFLAG_VNET :: 0x00020000;
++CTLFLAG_DYING :: 0x00010000;
++CTLFLAG_CAPRD :: 0x00008000;
++CTLFLAG_CAPWR :: 0x00004000;
++CTLFLAG_STATS :: 0x00002000;
++CTLFLAG_NOFETCH :: 0x00001000;
++CTLFLAG_CAPRW :: CTLFLAG_CAPRD|CTLFLAG_CAPWR;
++
++CTLSHIFT_SECURE :: 20;
++CTLFLAG_SECURE1 :: CTLFLAG_SECURE | (0 << CTLSHIFT_SECURE);
++CTLFLAG_SECURE2 :: CTLFLAG_SECURE | (1 << CTLSHIFT_SECURE);
++CTLFLAG_SECURE3 :: CTLFLAG_SECURE | (2 << CTLSHIFT_SECURE);
++
++OID_AUTO :: -1;
++
++CTL_AUTO_START :: 0x100;
++
++CTL_UNSPEC :: 0;
++CTL_KERN :: 1;
++CTL_VM :: 2;
++CTL_VFS :: 3;
++CTL_NET :: 4;
++CTL_DEBUG :: 5;
++CTL_HW :: 6;
++CTL_MACHDEP :: 7;
++CTL_USER :: 8;
++CTL_P1003_1B :: 9;
++
++KERN_OSTYPE :: 1;
++KERN_OSRELEASE :: 2;
++KERN_OSREV :: 3;
++KERN_VERSION :: 4;
++KERN_MAXVNODES :: 5;
++KERN_MAXPROC :: 6;
++KERN_MAXFILES :: 7;
++KERN_ARGMAX :: 8;
++KERN_SECURELVL :: 9;
++KERN_HOSTNAME :: 10;
++KERN_HOSTID :: 11;
++KERN_CLOCKRATE :: 12;
++KERN_VNODE :: 13;
++KERN_PROC :: 14;
++KERN_FILE :: 15;
++KERN_PROF :: 16;
++KERN_POSIX1 :: 17;
++KERN_NGROUPS :: 18;
++KERN_JOB_CONTROL :: 19;
++KERN_SAVED_IDS :: 20;
++KERN_BOOTTIME :: 21;
++KERN_NISDOMAINNAME :: 22;
++KERN_UPDATEINTERVAL :: 23;
++KERN_OSRELDATE :: 24;
++KERN_NTP_PLL :: 25;
++KERN_BOOTFILE :: 26;
++KERN_MAXFILESPERPROC :: 27;
++KERN_MAXPROCPERUID :: 28;
++KERN_DUMPDEV :: 29;
++KERN_IPC :: 30;
++KERN_DUMMY :: 31;
++KERN_PS_STRINGS :: 32;
++KERN_USRSTACK :: 33;
++KERN_LOGSIGEXIT :: 34;
++KERN_IOV_MAX :: 35;
++KERN_HOSTUUID :: 36;
++KERN_ARND :: 37;
++KERN_MAXPHYS :: 38;
++
++KERN_PROC_ALL :: 0;
++KERN_PROC_PID :: 1;
++KERN_PROC_PGRP :: 2;
++KERN_PROC_SESSION :: 3;
++KERN_PROC_TTY :: 4;
++KERN_PROC_UID :: 5;
++KERN_PROC_RUID :: 6;
++KERN_PROC_ARGS :: 7;
++KERN_PROC_PROC :: 8;
++KERN_PROC_SV_NAME :: 9;
++KERN_PROC_RGID :: 10;
++KERN_PROC_GID :: 11;
++KERN_PROC_PATHNAME :: 12;
++KERN_PROC_OVMMAP :: 13;
++KERN_PROC_OFILEDESC :: 14;
++KERN_PROC_KSTACK :: 15;
++KERN_PROC_INC_THREAD :: 0x10;
++
++KERN_PROC_VMMAP :: 32;
++KERN_PROC_FILEDESC :: 33;
++KERN_PROC_GROUPS :: 34;
++KERN_PROC_ENV :: 35;
++KERN_PROC_AUXV :: 36;
++KERN_PROC_RLIMIT :: 37;
++KERN_PROC_PS_STRINGS :: 38;
++KERN_PROC_UMASK :: 39;
++KERN_PROC_OSREL :: 40;
++KERN_PROC_SIGTRAMP :: 41;
++KERN_PROC_CWD :: 42;
++KERN_PROC_NFDS :: 43;
++
++KIPC_MAXSOCKBUF :: 1;
++KIPC_SOCKBUF_WASTE :: 2;
++KIPC_SOMAXCONN :: 3;
++KIPC_MAX_LINKHDR :: 4;
++KIPC_MAX_PROTOHDR :: 5;
++KIPC_MAX_HDR :: 6;
++KIPC_MAX_DATALEN :: 7;
++
++HW_MACHINE :: 1;
++HW_MODEL :: 2;
++HW_NCPU :: 3;
++HW_BYTEORDER :: 4;
++HW_PHYSMEM :: 5;
++HW_USERMEM :: 6;
++HW_PAGESIZE :: 7;
++HW_DISKNAMES :: 8;
++HW_DISKSTATS :: 9;
++HW_FLOATINGPT :: 10;
++HW_MACHINE_ARCH :: 11;
++HW_REALMEM :: 12;
++
++USER_CS_PATH :: 1;
++USER_BC_BASE_MAX :: 2;
++USER_BC_DIM_MAX :: 3;
++USER_BC_SCALE_MAX :: 4;
++USER_BC_STRING_MAX :: 5;
++USER_COLL_WEIGHTS_MAX :: 6;
++USER_EXPR_NEST_MAX :: 7;
++USER_LINE_MAX :: 8;
++USER_RE_DUP_MAX :: 9;
++USER_POSIX2_VERSION :: 10;
++USER_POSIX2_C_BIND :: 11;
++USER_POSIX2_C_DEV :: 12;
++USER_POSIX2_CHAR_TERM :: 13;
++USER_POSIX2_FORT_DEV :: 14;
++USER_POSIX2_FORT_RUN :: 15;
++USER_POSIX2_LOCALEDEF :: 16;
++USER_POSIX2_SW_DEV :: 17;
++USER_POSIX2_UPE :: 18;
++USER_STREAM_MAX :: 19;
++USER_TZNAME_MAX :: 20;
++
++CTL_P1003_1B_ASYNCHRONOUS_IO :: 1;
++CTL_P1003_1B_MAPPED_FILES :: 2;
++CTL_P1003_1B_MEMLOCK :: 3;
++CTL_P1003_1B_MEMLOCK_RANGE :: 4;
++CTL_P1003_1B_MEMORY_PROTECTION :: 5;
++CTL_P1003_1B_MESSAGE_PASSING :: 6;
++CTL_P1003_1B_PRIORITIZED_IO :: 7;
++CTL_P1003_1B_PRIORITY_SCHEDULING :: 8;
++CTL_P1003_1B_REALTIME_SIGNALS :: 9;
++CTL_P1003_1B_SEMAPHORES :: 10;
++CTL_P1003_1B_FSYNC :: 11;
++CTL_P1003_1B_SHARED_MEMORY_OBJECTS :: 12;
++CTL_P1003_1B_SYNCHRONIZED_IO :: 13;
++CTL_P1003_1B_TIMERS :: 14;
++CTL_P1003_1B_AIO_LISTIO_MAX :: 15;
++CTL_P1003_1B_AIO_MAX :: 16;
++CTL_P1003_1B_AIO_PRIO_DELTA_MAX :: 17;
++CTL_P1003_1B_DELAYTIMER_MAX :: 18;
++CTL_P1003_1B_MQ_OPEN_MAX :: 19;
++CTL_P1003_1B_PAGESIZE :: 20;
++CTL_P1003_1B_RTSIG_MAX :: 21;
++CTL_P1003_1B_SEM_NSEMS_MAX :: 22;
++CTL_P1003_1B_SEM_VALUE_MAX :: 23;
++CTL_P1003_1B_SIGQUEUE_MAX :: 24;
++CTL_P1003_1B_TIMER_MAX :: 25;
++
++CTL_P1003_1B_MAXID :: 26;
++
++socklen_t :: u32;
++
++h_errno: s32 #elsewhere libnx;
++
++/*
++* Structures returned by network data base library.  All addresses are
++* supplied in host order, and returned in network order (suitable for
++* use in system calls).
++*/
++hostent :: struct {
++    h_name:      *u8; /* official name of host */
++    h_aliases:   **u8; /* alias list */
++    h_addrtype:  s32; /* host address type */
++    h_length:    s32; /* length of address */
++    h_addr_list: **u8; /* list of addresses from name server */
++}
++
++netent :: struct {
++    n_name:     *u8; /* official name of net */
++    n_aliases:  **u8; /* alias list */
++    n_addrtype: s32; /* net address type */
++    n_net:      u32; /* network # */
++}
++
++servent :: struct {
++    s_name:    *u8; /* official service name */
++    s_aliases: **u8; /* alias list */
++    s_port:    s32; /* port # */
++    s_proto:   *u8; /* protocol to use */
++}
++
++protoent :: struct {
++    p_name:    *u8; /* official protocol name */
++    p_aliases: **u8; /* alias list */
++    p_proto:   s32; /* protocol # */
++}
++
++addrinfo :: struct {
++    ai_flags:     AI; /* AI_PASSIVE, AI_CANONNAME, AI_NUMERICHOST */
++    ai_family:    s32; /* AF_xxx */
++    ai_socktype:  SOCK; /* SOCK_xxx */
++    ai_protocol:  IPPROTO; /* 0 or IPPROTO_xxx for IPv4 and IPv6 */
++    ai_addrlen:   socklen_t; /* length of ai_addr */
++    ai_canonname: *u8; /* canonical name for hostname */
++    ai_addr:      *sockaddr; /* binary address */
++    ai_next:      *addrinfo; /* next structure in linked list */
++}
++
++// Modified the prototypes: added argument names, etc.
++endhostent :: () -> void #foreign libc;
++endnetent :: () -> void #foreign libc;
++endprotoent :: () -> void #foreign libc;
++endservent :: () -> void #foreign libc;
++
++gethostbyname :: (name: *u8) -> *hostent #foreign libc;
++gethostbyaddr :: (addr: *void, len: socklen_t, type: s32) -> *hostent #foreign libc;
++
++gethostent :: () -> *hostent #foreign libc;
++getnetbyaddr :: (unknown0: u32, unknown1: s32) -> *netent #foreign libc;
++getnetbyname :: (unknown0: *u8) -> *netent #foreign libc;
++getnetent :: () -> *netent #foreign libc;
++getprotobyname :: (unknown0: *u8) -> *protoent #foreign libc;
++getprotobynumber :: (unknown0: s32) -> *protoent #foreign libc;
++getprotoent :: () -> *protoent #foreign libc;
++getservbyname :: (unknown0: *u8, unknown1: *u8) -> *servent #foreign libc;
++getservbyport :: (unknown0: s32, unknown1: *u8) -> *servent #foreign libc;
++getservent :: () -> *servent #foreign libc;
++sethostent :: (unknown0: s32) -> void #foreign libc;
++
++/* void		sethostfile(const char *); */
++setnetent :: (unknown0: s32) -> void #foreign libc;
++setprotoent :: (unknown0: s32) -> void #foreign libc;
++getnameinfo :: (sa: *sockaddr, salen: socklen_t, host: *u8, hostlen: socklen_t, serv: *u8, servlen: socklen_t, flags: s32) -> s32 #foreign libc;
++
++getaddrinfo :: (node: *u8, service: *u8, hints: *addrinfo, res: **addrinfo) -> s32 #foreign libc;
++
++freeaddrinfo :: (ai: *addrinfo) -> void #foreign libc;
++
++gai_strerror :: (err: s32) -> *u8 #foreign libc;
++setservent :: (unknown0: s32) -> void #foreign libc;
++
++// removed a lot of definitions here
++freehostent :: (he: *hostent) -> void #foreign libnx;
++herror :: (s: *u8) -> void #foreign libc;
++hstrerror :: (err: s32) -> *u8 #foreign libc;
++
++fd_set :: struct {
++    fds_bits: [1] u64;
++}
++
++select :: (__n: s32, __readfds: *fd_set, __writefds: *fd_set, __exceptfds: *fd_set, __timeout: *timeval) -> s32 #foreign libc;
++
++in_addr_t :: u32;
++
++in_port_t :: u16;
++
++sa_family_t :: u8;
++
++in_addr :: struct {
++    s_addr: in_addr_t;
++}
++
++sockaddr_storage :: struct {
++    ss_len:     u8; /* address length */
++    ss_family:  sa_family_t; /* address family */
++    __ss_pad1:  [6] u8;
++    __ss_align: s64;
++    /* force desired struct alignment */ // changed
++    __ss_pad2:  [112] u8;
++}
++
++/* Socket address, internet style. */
++sockaddr_in :: struct {
++    sin_len:    u8;
++    sin_family: sa_family_t;
++    sin_port:   in_port_t;
++    sin_addr:   in_addr;
++    sin_zero:   [8] u8;
++}
++
++/*
++* Argument structure for IP_ADD_MEMBERSHIP and IP_DROP_MEMBERSHIP.
++*/
++ip_mreq :: struct {
++    imr_multiaddr: in_addr; /* IP multicast address of group */
++    imr_interface: in_addr; /* local IP address of interface */
++}
++
++/*
++* Modified argument structure for IP_MULTICAST_IF, obtained from Linux.
++* This is used to specify an interface index for multicast sends, as
++* the IPv4 legacy APIs do not support this (unless IP_SENDIF is available).
++*/
++ip_mreqn :: struct {
++    imr_multiaddr: in_addr; /* IP multicast address of group */
++    imr_address:   in_addr; /* local IP address of interface */
++    imr_ifindex:   s32; /* Interface index; cast to uint32_t */
++}
++
++/*
++* Argument structure for IPv4 Multicast Source Filter APIs. [RFC3678]
++*/
++ip_mreq_source :: struct {
++    imr_multiaddr:  in_addr; /* IP multicast address of group */
++    imr_sourceaddr: in_addr; /* IP address of source */
++    imr_interface:  in_addr; /* local IP address of interface */
++}
++
++/*
++* Argument structures for Protocol-Independent Multicast Source
++* Filter APIs. [RFC3678]
++*/
++group_req :: struct {
++    gr_interface: u32; /* interface index */
++    gr_group:     sockaddr_storage; /* group address */
++}
++
++group_source_req :: struct {
++    gsr_interface: u32; /* interface index */
++    gsr_group:     sockaddr_storage; /* group address */
++    gsr_source:    sockaddr_storage; /* source address */
++}
++
++in6_addr :: struct {
++    union {
++        __u6_addr16: [8] u16;
++        __u6_addr32: [4] u32;
++        s6_addr:     [16] u8; /* IPv6 address */
++    }
++}
++
++sockaddr_in6 :: struct {
++    sin6_family:   sa_family_t; /* AF_INET6 */
++    sin6_port:     in_port_t; /* port number */
++    sin6_flowinfo: u32; /* IPv6 flow information */
++    sin6_addr:     in6_addr; /* IPv6 address */
++    sin6_scope_id: u32; /* Scope ID */
++}
++
++in6addr_any: in6_addr #elsewhere libc;
++in6addr_loopback: in6_addr #elsewhere libc;
++
++htonl :: (hostlong: u32) -> u32 #foreign libc;
++
++htons :: (hostshort: u16) -> u16 #foreign libc;
++
++ntohl :: (netlong: u32) -> u32 #foreign libc;
++
++ntohs :: (netshort: u16) -> u16 #foreign libc;
++
++inet_addr :: (cp: *u8) -> in_addr_t #foreign libc;
++inet_aton :: (cp: *u8, inp: *in_addr) -> s32 #foreign libc;
++inet_ntoa :: (in: in_addr) -> *u8 #foreign libc;
++
++inet_ntop :: (af: s32, src: *void, dst: *u8, size: socklen_t) -> *u8 #foreign libc;
++inet_pton :: (af: s32, src: *u8, dst: *void) -> s32 #foreign libc;
++
++tcp_seq :: u32;
++
++/*
++* TCP header.
++* Per RFC 793, September, 1981.
++*/
++tcphdr :: struct {
++    th_sport: u16; /* source port */
++    th_dport: u16; /* destination port */
++    th_seq:   tcp_seq; /* sequence number */
++    th_ack:   tcp_seq; /* acknowledgement number */
++
++    th_x2:    u8; /* (unused) */
++    #place th_x2; /*bitfield 4*/ th_off:   u8; /* data offset */
++
++    th_flags: u8;
++
++    th_win:   u16; /* window */
++    th_sum:   u16; /* checksum */
++    th_urp:   u16; /* urgent pointer */
++}
++
++/*
++* The TCP_INFO socket option comes from the Linux 2.6 TCP API, and permits
++* the caller to query certain information about the state of a TCP
++* connection.  We provide an overlapping set of fields with the Linux
++* implementation, but since this is a fixed size structure, room has been
++* left for growth.  In order to maximize potential future compatibility with
++* the Linux API, the same variable names and order have been adopted, and
++* padding left to make room for omitted fields in case they are added later.
++*
++* XXX: This is currently an unstable ABI/API, in that it is expected to
++* change.
++*/
++tcp_info :: struct {
++    tcpi_state:            u8; /* TCP FSM state. */
++    __tcpi_ca_state:       u8;
++    __tcpi_retransmits:    u8;
++    __tcpi_probes:         u8;
++    __tcpi_backoff:        u8;
++    tcpi_options:          u8; /* Options enabled on conn. */
++    tcpi_snd_wscale:       u8; /* RFC1323 send shift value. */
++    #place tcpi_snd_wscale; /*bitfield 4*/ tcpi_rcv_wscale:       u8; /* RFC1323 recv shift value. */
++
++    tcpi_rto:              u32; /* Retransmission timeout (usec). */
++    __tcpi_ato:            u32;
++    tcpi_snd_mss:          u32; /* Max segment size for send. */
++    tcpi_rcv_mss:          u32; /* Max segment size for receive. */
++
++    __tcpi_unacked:        u32;
++    __tcpi_sacked:         u32;
++    __tcpi_lost:           u32;
++    __tcpi_retrans:        u32;
++    __tcpi_fackets:        u32;
++
++    /* Times; measurements in usecs. */
++    __tcpi_last_data_sent: u32;
++    __tcpi_last_ack_sent:  u32; /* Also unimpl. on Linux? */
++    tcpi_last_data_recv:   u32; /* Time since last recv data. */
++    __tcpi_last_ack_recv:  u32;
++
++    /* Metrics; variable units. */
++    __tcpi_pmtu:           u32;
++    __tcpi_rcv_ssthresh:   u32;
++    tcpi_rtt:              u32; /* Smoothed RTT in usecs. */
++    tcpi_rttvar:           u32; /* RTT variance in usecs. */
++    tcpi_snd_ssthresh:     u32; /* Slow start threshold. */
++    tcpi_snd_cwnd:         u32; /* Send congestion window. */
++    __tcpi_advmss:         u32;
++    __tcpi_reordering:     u32;
++
++    __tcpi_rcv_rtt:        u32;
++    tcpi_rcv_space:        u32; /* Advertised recv window. */
++
++    tcpi_snd_wnd:          u32; /* Advertised send window. */
++    tcpi_snd_bwnd:         u32; /* No longer used. */
++    tcpi_snd_nxt:          u32; /* Next egress seqno */
++    tcpi_rcv_nxt:          u32; /* Next ingress seqno */
++    tcpi_toe_tid:          u32; /* HWTID for TOE endpoints */
++    tcpi_snd_rexmitpack:   u32; /* Retransmitted packets */
++    tcpi_rcv_ooopack:      u32; /* Out-of-order packets */
++    tcpi_snd_zerowin:      u32; /* Zero-sized windows sent */
++
++    __tcpi_pad:            [26] u32; /* Padding. */
++}
++
++tcp_function_set :: struct {
++    function_set_name: [32] u8;
++    pcbcnt:            u32;
++}
++
++iovec :: struct {
++    iov_base: *void; /* Base address. */
++    iov_len:  u64; /* Length. */
++}
++
++/*
++* Structure used for manipulating linger option.
++*/
++linger :: struct {
++    l_onoff:  s32; /* option on/off */
++    l_linger: s32; /* linger time */
++}
++
++accept_filter_arg :: struct {
++    af_name: [16] u8;
++    af_arg:  [240] u8;
++}
++
++/*
++* Structure used by kernel to store most
++* addresses.
++*/
++sockaddr :: struct {
++    sa_len:    u8; /* total length */
++    sa_family: sa_family_t; /* address family */
++    sa_data:   [14] u8; /* actually longer; address value */
++}
++
++/*
++* Structure used by kernel to pass protocol
++* information in raw sockets.
++*/
++sockproto :: struct {
++    sp_family:   u16; /* address family */
++    sp_protocol: u16; /* protocol */
++}
++
++/*
++* Message header for recvmsg and sendmsg calls.
++* Used value-result for recvmsg, value only for sendmsg.
++*/
++msghdr :: struct {
++    msg_name:       *void; /* optional address */
++    msg_namelen:    socklen_t; /* size of address */
++    msg_iov:        *iovec; /* scatter/gather array */
++    msg_iovlen:     s32; /* # elements in msg_iov */
++    msg_control:    *void; /* ancillary data, see below */
++    msg_controllen: socklen_t; /* ancillary data buffer len */
++    msg_flags:      s32; /* flags on received message */
++}
++
++/*
++* Header for ancillary data objects in msg_control buffer.
++* Used for additional information with/about a datagram
++* not expressible by flags.  The format is a sequence
++* of message elements headed by cmsghdr structures.
++*/
++cmsghdr :: struct {
++    cmsg_len:   socklen_t; /* data byte count, including hdr */
++    cmsg_level: s32; /* originating protocol */
++    cmsg_type:  s32; /* protocol-specific type */
++}
++
++sock_timestamp_info :: struct {
++    st_info_flags: u32;
++    st_info_pad0:  u32;
++    st_info_rsv:   [7] u64;
++}
++
++/*
++* 4.3 compat sockaddr, move to compat file later
++*/
++osockaddr :: struct {
++    sa_family: u16; /* address family */
++    sa_data:   [14] u8; /* up to 14 bytes of direct address */
++}
++
++/*
++* 4.3-compat message header (move to compat file later).
++*/
++omsghdr :: struct {
++    msg_name:         *u8; /* optional address */
++    msg_namelen:      s32; /* size of address */
++    msg_iov:          *iovec; /* scatter/gather array */
++    msg_iovlen:       s32; /* # elements in msg_iov */
++    msg_accrights:    *u8; /* access rights sent/received */
++    msg_accrightslen: s32;
++}
++
++/*
++* sendfile(2) header/trailer struct
++*/
++sf_hdtr :: struct {
++    headers:  *iovec; /* pointer to an array of header struct iovec's */
++    hdr_cnt:  s32; /* number of header iovec's */
++    trailers: *iovec; /* pointer to an array of trailer struct iovec's */
++    trl_cnt:  s32; /* number of trailer iovec's */
++}
++
++/*
++* Sendmmsg/recvmmsg specific structure(s)
++*/
++mmsghdr :: struct {
++    msg_hdr: msghdr; /* message header */
++    msg_len: ssize_t; /* message length */
++}
++
++// Note: POSIX claims that some prototypes should take restrict ptrs
++// But this causes more problem that it solves, so much like linux
++// We won't declare those args restrict.
++socket :: (domain: s32, type: SOCK, protocol: IPPROTO) -> s32 #foreign libc;
++recv :: (sockfd: s32, buf: *void, len: u64, flags: MSG) -> ssize_t #foreign libc;
++recvfrom :: (sockfd: s32, buf: *void, len: u64, flags: MSG, src_addr: *sockaddr, addrlen: *socklen_t) -> ssize_t #foreign libc;
++send :: (sockfd: s32, buf: *void, len: u64, flags: MSG) -> ssize_t #foreign libc;
++sendto :: (sockfd: s32, buf: *void, len: u64, flags: MSG, dest_addr: *sockaddr, addrlen: socklen_t) -> ssize_t #foreign libc;
++accept :: (sockfd: s32, addr: *sockaddr, addrlen: *socklen_t) -> s32 #foreign libc;
++bind :: (sockfd: s32, addr: *sockaddr, addrlen: socklen_t) -> s32 #foreign libc;
++connect :: (sockfd: s32, addr: *sockaddr, addrlen: socklen_t) -> s32 #foreign libc;
++getpeername :: (sockfd: s32, addr: *sockaddr, addrlen: *socklen_t) -> s32 #foreign libc;
++getsockname :: (sockfd: s32, addr: *sockaddr, addrlen: *socklen_t) -> s32 #foreign libc;
++getsockopt :: (sockfd: s32, level: s32, optname: s32, optval: *void, optlen: *socklen_t) -> s32 #foreign libc;
++listen :: (sockfd: s32, backlog: s32) -> s32 #foreign libc;
++setsockopt :: (sockfd: s32, level: s32, optname: s32, optval: *void, optlen: socklen_t) -> s32 #foreign libc;
++shutdown :: (sockfd: s32, how: s32) -> s32 #foreign libc;
++
++sockatmark :: (sockfd: s32) -> s32 #foreign libc;
++socketpair :: (domain: s32, type: s32, protocol: s32, sv: *[2] s32) -> s32 #foreign libc;
++
++recvmsg :: (sockfd: s32, msg: *msghdr, flags: s32) -> ssize_t #foreign libc;
++sendmsg :: (sockfd: s32, msg: *msghdr, flags: s32) -> ssize_t #foreign libc;
++
++sendmmsg :: (sockfd: s32, msgvec: *mmsghdr, vlen: u32, flags: s32) -> s32 #foreign libc;
++recvmmsg :: (sockfd: s32, msgvec: *mmsghdr, vlen: u32, flags: s32, timeout: *timespec) -> s32 #foreign libc;
++
++/*
++* UDP protocol header.
++* Per RFC 768, September, 1981.
++*/
++udphdr :: struct {
++    uh_sport: u16; /* source port */
++    uh_dport: u16; /* destination port */
++    uh_ulen:  u16; /* udp length */
++    uh_sum:   u16; /* udp checksum */
++}
++
++// Modified declaration
++ioctl :: (fd: s32, request: s32, __args: ..Any) -> s32 #foreign libc;
++
++fiodgname_arg :: struct {
++    len: s32;
++    buf: *void;
++}
++
++/*
++* Each subsystem defined by sysctl defines a list of variables
++* for that subsystem. Each name is either a node with further
++* levels defined below it, or it is a leaf of some particular
++* type given below. Each sysctl level defines a set of name/type
++* pairs to be used by sysctl(8) in manipulating the subsystem.
++*/
++ctlname :: struct {
++    ctl_name: *u8; /* subsystem name */
++    ctl_type: s32; /* type of name */
++}
++
++// Modified: added arg names, etc
++sysctl :: (name: *s32, namelen: u32, oldp: *void, oldlenp: *u64, newp: *void, newlen: u64) -> s32 #foreign libnx;
++sysctlbyname :: (name: *u8, oldp: *void, oldlenp: *u64, newp: *void, newlen: u64) -> s32 #foreign libnx;
++sysctlnametomib :: (name: *u8, mibp: *s32, sizep: *u64) -> s32 #foreign libnx;
++
++#scope_file
++
++libc :: #system_library,no_dll "libc";
++libnx :: #system_library,no_dll "libnx";
+diff --git a/modules/Socket/module.jai b/modules/Socket/module.jai
+index 9157b61..0618eea 100644
+--- a/modules/Socket/module.jai
++++ b/modules/Socket/module.jai
+@@ -521,6 +521,8 @@ close_and_reset :: (s: *Socket, loc := #caller_location) {
+     #load "generated_android.jai";
+ } else #if OS == .MACOS {
+     #load "generated_macos.jai";
++} else #if OS == .NN_SWITCH {
++    #load "generated_nn_switch.jai";
+ }
+ 
+ #scope_module

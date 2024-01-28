@@ -6,52 +6,16 @@
 #load "autogen.jai";
 
 #import "Bitfields";
-
-size_t   :: u64;
-ssize_t  :: s64;
-off_t    :: s64;
+#import "POSIX";
+#import "Socket";
 
 __uintptr_t :: u64;
 
-_LOCK_T :: u32;
-_COND_T :: u32;
-
-_LOCK_RECURSIVE_T :: struct {
-    lock: _LOCK_T;
-    thread_tag: u32;
-    counter: u32;
-}
-
-in_addr_t :: u32;
-in_port_t :: u16;
-
-_iconv_t :: *void;
-
-__clock_t     :: u64;
-__time_t      :: s64;
-__clockid_t   :: u64;
+__clock_t     :: clock_t;
+__time_t      :: time_t;
+__clockid_t   :: clockid_t;
 __daddr_t     :: s64;
 __timer_t     :: u64;
-__sa_family_t :: u8;
-__socklen_t   :: u32;
-
-time_t   :: s64;
-suseconds_t :: s32;
-
-timespec :: struct {
-    tv_sec:  time_t;
-    tv_nsec: s64;
-}
-
-timeval :: struct {
-    tv_sec:  time_t;      // seconds
-    tv_usec: suseconds_t; // and microseconds
-}
-
-itimerval :: struct {
-    it_interval: timeval; // Timer interval.
-    it_value:    timeval; // Current value.
-}
 
 BIT :: (x: $T) -> T {
     return (cast(T)1) << x;

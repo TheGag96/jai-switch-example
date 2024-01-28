@@ -18,7 +18,6 @@ AT_COMPILE_TIME :: false;
   }
 }
 
-omit_list :: string.[];
 bitfield_structs: String_Builder;
 
 generate_bindings :: () -> bool {
@@ -53,21 +52,6 @@ generate_bindings :: () -> bool {
     array_add(
       *source_files,
       tprint("%/libnx/include/switch.h",                devkitpro),
-      tprint("%/libnx/include/netdb.h",                 devkitpro),
-      tprint("%/libnx/include/poll.h",                  devkitpro),
-      tprint("%/libnx/include/arpa/inet.h",             devkitpro),
-      tprint("%/libnx/include/netinet/in.h",            devkitpro),
-      tprint("%/libnx/include/netinet/tcp.h",           devkitpro),
-      tprint("%/libnx/include/netinet/udp.h",           devkitpro),
-      tprint("%/libnx/include/sys/filio.h",             devkitpro),
-      tprint("%/libnx/include/sys/ioccom.h",            devkitpro),
-      tprint("%/libnx/include/sys/ioctl.h",             devkitpro),
-      tprint("%/libnx/include/sys/_iovec.h",            devkitpro),
-      tprint("%/libnx/include/sys/poll.h",              devkitpro),
-      tprint("%/libnx/include/sys/_sockaddr_storage.h", devkitpro),
-      tprint("%/libnx/include/sys/socket.h",            devkitpro),
-      tprint("%/libnx/include/sys/sockio.h",            devkitpro),
-      tprint("%/libnx/include/sys/sysctl.h",            devkitpro),
     );
     array_add(*include_paths, tprint("%/libnx/include", devkitpro));
 
@@ -308,6 +292,10 @@ BITFIELDS_EXCLUDE :: string.[
   // This is a linked list type, and my bitfields library doesn't handle the self-reference yet.
   // Also, its one bitfield is used to make an enum field 8 bits large, which the generator turns into a u8 anyway.
   "AudioDriverWaveBuf",
+
+  // This is defined in the autogen'd bindings for the Socket module. Having proper access to this struct is not very
+  // important.
+  "pthread_rwlock_t",
 ];
 
 Function_Remap :: struct {
