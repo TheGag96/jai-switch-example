@@ -117,22 +117,23 @@ dkRasterizerStateDefaults :: inline (state: *DkRasterizerState) {
 }
 
 dkMultisampleStateDefaults :: inline (state: *DkMultisampleState) {
-    state.mode                  = DkMsMode._1x;
-    state.rasterizerMode        = DkMsMode._1x;
-    state.alphaToCoverageEnable = false;
-    state.alphaToCoverageDither = true;
-    state.coverageToColorEnable = false;
-    state.coverageToColorOutput = 0;
-    state.coverageModulation    = DkCoverageModulation.None;
-    state.sampleLocations[0]    = 0x88888888;
-    state.sampleLocations[1]    = 0x88888888;
-    state.sampleLocations[2]    = 0x88888888;
-    state.sampleLocations[3]    = 0x88888888;
+    state.set_mode                  (state, DkMsMode._1x);
+    state.set_rasterizerMode        (state, DkMsMode._1x);
+    state.set_alphaToCoverageEnable (state, xx false);
+    state.set_alphaToCoverageDither (state, xx true);
+    state.set_coverageToColorEnable (state, xx false);
+    state.set_coverageToColorOutput (state, 0);
+    state.set_coverageModulation    (state, DkCoverageModulation.None);
+    state.sampleLocations[0]        =       0x88888888;
+    state.sampleLocations[1]        =       0x88888888;
+    state.sampleLocations[2]        =       0x88888888;
+    state.sampleLocations[3]        =       0x88888888;
 }
 
 dkColorStateSetBlendEnable :: inline (state: *DkColorState, id: u32, enable: bool) {
-    if enable  state.blendEnableMask |= 1 << id;
-    else       state.blendEnableMask &= ~(1 << id);
+    blend_enable_mask := state.get_blendEnableMask(state);
+    if enable  state.set_blendEnableMask(state, xx (blend_enable_mask | 1 << id));
+    else       state.set_blendEnableMask(state, xx (blend_enable_mask & ~(1 << id)));
 }
 
 dkColorStateDefaults :: inline (state: *DkColorState) {
@@ -156,50 +157,49 @@ dkColorWriteStateDefaults :: inline (state: *DkColorWriteState) {
     state.masks = 0xFFFFFFFF;
 }
 
-dkColorWriteStateSetMask :: inline (state: *DkColorWriteState, id: u32, colorWriteMask: u32)
-{
-    state.masks &= ~(0xF << (id*4));
+dkColorWriteStateSetMask :: inline (state: *DkColorWriteState, id: u32, colorWriteMask: u32) {
+    state.masks &= xx (~(0xF << (id*4)));
     state.masks |= (colorWriteMask&0xF) << (id*4);
 }
 
 dkBlendStateDefaults :: inline (state: *DkBlendState) {
-    state.colorBlendOp        = DkBlendOp.Add;
-    state.srcColorBlendFactor = DkBlendFactor_SrcAlpha;
-    state.dstColorBlendFactor = DkBlendFactor_InvSrcAlpha;
+    state.set_colorBlendOp        (state, DkBlendOp.Add);
+    state.set_srcColorBlendFactor (state, DkBlendFactor.SrcAlpha);
+    state.set_dstColorBlendFactor (state, DkBlendFactor.InvSrcAlpha);
 
-    state.alphaBlendOp        = DkBlendOp.Add;
-    state.srcAlphaBlendFactor = DkBlendFactor_One;
-    state.dstAlphaBlendFactor = DkBlendFactor_Zero;
+    state.set_alphaBlendOp        (state, DkBlendOp.Add);
+    state.set_srcAlphaBlendFactor (state, DkBlendFactor.One);
+    state.set_dstAlphaBlendFactor (state, DkBlendFactor.Zero);
 }
 
 dkBlendStateSetOps :: inline (state: *DkBlendState, colorBlendOp: DkBlendOp, alphaBlendOp: DkBlendOp) {
-    state.colorBlendOp = colorBlendOp;
-    state.alphaBlendOp = alphaBlendOp;
+    state.set_colorBlendOp (state, colorBlendOp);
+    state.set_alphaBlendOp (state, alphaBlendOp);
 }
 
 dkBlendStateSetFactors :: inline (state: *DkBlendState, srcColorBlendFactor: DkBlendFactor, dstColorBlendFactor: DkBlendFactor, srcAlphaBlendFactor: DkBlendFactor, dstAlphaBlendFactor: DkBlendFactor) {
-    state.srcColorBlendFactor = srcColorBlendFactor;
-    state.dstColorBlendFactor = dstColorBlendFactor;
-    state.srcAlphaBlendFactor = srcAlphaBlendFactor;
-    state.dstAlphaBlendFactor = dstAlphaBlendFactor;
+    state.set_srcColorBlendFactor (state, srcColorBlendFactor);
+    state.set_dstColorBlendFactor (state, dstColorBlendFactor);
+    state.set_srcAlphaBlendFactor (state, srcAlphaBlendFactor);
+    state.set_dstAlphaBlendFactor (state, dstAlphaBlendFactor);
 }
 
 dkDepthStencilStateDefaults :: inline (state: *DkDepthStencilState)
 {
-    state.depthTestEnable         = true;
-    state.depthWriteEnable        = true;
-    state.stencilTestEnable       = false;
-    state.depthCompareOp          = DkCompareOp.Less;
+    state.set_depthTestEnable         (state, xx true);
+    state.set_depthWriteEnable        (state, xx true);
+    state.set_stencilTestEnable       (state, xx false);
+    state.set_depthCompareOp          (state, DkCompareOp.Less);
 
-    state.stencilFrontFailOp      = DkStencilOp.Keep;
-    state.stencilFrontPassOp      = DkStencilOp.Replace;
-    state.stencilFrontDepthFailOp = DkStencilOp.Keep;
-    state.stencilFrontCompareOp   = DkCompareOp.Always;
+    state.set_stencilFrontFailOp      (state, DkStencilOp.Keep);
+    state.set_stencilFrontPassOp      (state, DkStencilOp.Replace);
+    state.set_stencilFrontDepthFailOp (state, DkStencilOp.Keep);
+    state.set_stencilFrontCompareOp   (state, DkCompareOp.Always);
 
-    state.stencilBackFailOp       = DkStencilOp.Keep;
-    state.stencilBackPassOp       = DkStencilOp.Replace;
-    state.stencilBackDepthFailOp  = DkStencilOp.Keep;
-    state.stencilBackCompareOp    = DkCompareOp.Always;
+    state.set_stencilBackFailOp       (state, DkStencilOp.Keep);
+    state.set_stencilBackPassOp       (state, DkStencilOp.Replace);
+    state.set_stencilBackDepthFailOp  (state, DkStencilOp.Keep);
+    state.set_stencilBackCompareOp    (state, DkCompareOp.Always);
 }
 
 dkTimestampToNs :: inline (ts: u64) -> u64 {
@@ -216,7 +216,7 @@ dkCmdBufBindUniformBuffer :: inline (obj: DkCmdBuf, stage: DkStage, id: u32, buf
 }
 
 dkCmdBufBindStorageBuffer :: inline (obj: DkCmdBuf, stage: DkStage, id: u32, bufAddr: DkGpuAddr, bufSize: u32) {
-    ext = DkBufExtents.{ bufAddr, bufSize };
+    ext := DkBufExtents.{ bufAddr, bufSize };
     dkCmdBufBindStorageBuffers(obj, stage, id, *ext, 1);
 }
 
@@ -237,7 +237,7 @@ dkCmdBufBindBlendState :: inline (obj: DkCmdBuf, id: u32, state: *DkBlendState) 
 }
 
 dkCmdBufBindVtxBuffer :: inline (obj: DkCmdBuf, id: u32, bufAddr: DkGpuAddr, bufSize: u32) {
-    ext = DkBufExtents.{ bufAddr, bufSize };
+    ext := DkBufExtents.{ bufAddr, bufSize };
     dkCmdBufBindVtxBuffers(obj, id, *ext, 1);
 }
 

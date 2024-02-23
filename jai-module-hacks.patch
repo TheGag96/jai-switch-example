@@ -1,8 +1,50 @@
+diff --git a/modules/Basic/Apollo_Time.jai b/modules/Basic/Apollo_Time.jai
+index 5ab43f3..803128d 100644
+--- a/modules/Basic/Apollo_Time.jai
++++ b/modules/Basic/Apollo_Time.jai
+@@ -762,7 +762,7 @@ to_apollo :: (seconds: float64) -> Apollo_Time {
+         return ft0a;
+     }
+     */
+-} else #if (OS == .LINUX || OS == .MACOS || OS == .ANDROID) {
++} else #if (OS == .LINUX || OS == .MACOS || OS == .ANDROID || OS == .NN_SWITCH) {
+     #scope_file;
+ 
+     #import "POSIX";
+@@ -784,7 +784,13 @@ to_apollo :: (seconds: float64) -> Apollo_Time {
+ 
+     current_time_monotonic :: () -> Apollo_Time {
+         ts: timespec;
+-        clock_gettime(CLOCK_MONOTONIC_RAW, *ts);
++
++        #if OS == .NN_SWITCH { // @HACK: devkitPro's librt doesn't have _RAW available
++            clock_gettime(CLOCK_MONOTONIC, *ts);
++        }
++        else {
++            clock_gettime(CLOCK_MONOTONIC_RAW, *ts);
++        }
+ 
+         apollo := timespec_to_apollo(ts);
+         return apollo;
+diff --git a/modules/Basic/module.jai b/modules/Basic/module.jai
+index 671c059..059b594 100644
+--- a/modules/Basic/module.jai
++++ b/modules/Basic/module.jai
+@@ -593,7 +593,8 @@ align_forward :: (orig_size: s64, alignment: s64) -> s64 {
+     case .ANDROID;   #load "linux.jai";
+     case .MACOS;     #load "osx.jai";
+     case .PS5;       #load "ps5.jai";
+-    case .NN_SWITCH; #load "switch.jai";  // Not distributed, for license reasons.
++    // case .NN_SWITCH; #load "switch.jai";  // Not distributed, for license reasons.
++    case .NN_SWITCH; #load "linux.jai";      // ...But for homebrew, Linux's stuff should work okay
+ }
+ 
+ #scope_file
 diff --git a/modules/Bindings_Generator/module.jai b/modules/Bindings_Generator/module.jai
-index cb0e472..c06931e 100644
+index c68ca0f..8cce2a9 100644
 --- a/modules/Bindings_Generator/module.jai
 +++ b/modules/Bindings_Generator/module.jai
-@@ -145,6 +145,7 @@ RESERVED_NAMES :: string.[
+@@ -146,6 +146,7 @@ RESERVED_NAMES :: string.[
      "cast",
      "context",
      "false",
@@ -10,7 +52,7 @@ index cb0e472..c06931e 100644
      "is_constant",
      "null",
      "remove",
-@@ -155,6 +156,7 @@ RESERVED_NAMES :: string.[
+@@ -156,6 +157,7 @@ RESERVED_NAMES :: string.[
      // Builtin types (as defined in the compiler’s "get_primitive_type_declaration()" function):
      "Any",
      "bool",
@@ -19,23 +61,23 @@ index cb0e472..c06931e 100644
      "float32",
      "float64",
 diff --git a/modules/Default_Allocator/module.jai b/modules/Default_Allocator/module.jai
-index 1ce3d86..30ab564 100644
+index f37cb06..150be06 100644
 --- a/modules/Default_Allocator/module.jai
 +++ b/modules/Default_Allocator/module.jai
-@@ -2047,7 +2047,7 @@
+@@ -2046,7 +2046,7 @@
  
      #if OS == .WINDOWS {
          crt      :: #system_library "msvcrt";  // For malloc, free on Windows
--    } else #if (OS == .MACOS) || (OS == .LINUX) {
-+    } else #if (OS == .MACOS) || (OS == .LINUX) || (OS == .NN_SWITCH) {
+-    } else #if OS == .MACOS || OS == .IOS || OS == .LINUX || OS == .ANDROID {
++    } else #if OS == .MACOS || OS == .IOS || OS == .LINUX || OS == .ANDROID || OS == .NN_SWITCH {
          crt      :: #system_library "libc";
      }
  }
 diff --git a/modules/POSIX/POSIX.jai b/modules/POSIX/POSIX.jai
-index 29cc410..8511a88 100644
+index 8aea179..43b7209 100644
 --- a/modules/POSIX/POSIX.jai
 +++ b/modules/POSIX/POSIX.jai
-@@ -21,15 +21,15 @@ PTHREAD_START_ROUTINE :: #type (parameter: *void) -> *void #c_call;
+@@ -19,22 +19,27 @@ OS_Error_Code :: #type,isa s32;
  size_t   :: u64;
  ssize_t  :: s64;
  off_t    :: s64;
@@ -47,6 +89,7 @@ index 29cc410..8511a88 100644
 -key_t    :: s32;
  pid_t    :: s32;
 -suseconds_t :: s32;
+ 
  #if OS == .LINUX {
 +    ino_t     :: u64;
 +    uid_t     :: u32;
@@ -56,9 +99,8 @@ index 29cc410..8511a88 100644
      dev_t     :: u64;
      mode_t    :: u32;
      nlink_t   :: u64;
-@@ -37,6 +37,11 @@ suseconds_t :: s32;
+     blksize_t :: s64;
      clock_t   :: s64;
- 
  } else #if OS == .MACOS {
 +    ino_t     :: u64;
 +    uid_t     :: u32;
@@ -68,7 +110,7 @@ index 29cc410..8511a88 100644
      dev_t     :: s32;
      mode_t    :: u16;
      nlink_t   :: u16;
-@@ -46,6 +51,19 @@ suseconds_t :: s32;
+@@ -44,6 +49,19 @@ suseconds_t :: s32;
      quad_t  :: u64;
      caddr_t :: *s8;
      fixpt_t :: u32;
@@ -88,7 +130,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header sys/poll.h
-@@ -68,6 +86,8 @@ pollfd :: struct {
+@@ -66,6 +84,8 @@ pollfd :: struct {
      nfds_t :: u64;
  } else #if OS == .MACOS {
      nfds_t :: u32;
@@ -97,7 +139,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header sys/wait.h
-@@ -101,6 +121,13 @@ WUNTRACED :: 2;
+@@ -99,6 +119,13 @@ WUNTRACED :: 2;
      WIFSTOPPED   :: inline (status: s32) -> bool { return WSTATUS(status) == WSTOPPED && WSTOPSIG(status) != 0x13; }
      WIFCONTINUED :: inline (status: s32) -> bool { return WSTATUS(status) == WSTOPPED && WSTOPSIG(status) == 0x13; }
      WCOREDUMP    :: inline (status: s32) -> s32  { return status & WCOREFLAG; }
@@ -111,7 +153,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header sys/ipc.h
-@@ -171,6 +198,22 @@ O_ACCMODE :: 0x3;     // Mask for above modes
+@@ -169,6 +196,22 @@ O_ACCMODE :: 0x3;     // Mask for above modes
      O_SYMLINK      :: 0x00200000; // Allow open of a symlink
      O_CLOEXEC      :: 0x01000000; // Implicitly set FD_CLOEXEC
      O_NOFOLLOW_ANY :: 0x20000000; // No symlinks allowed in path
@@ -134,7 +176,7 @@ index 29cc410..8511a88 100644
  }
  #if OS == .LINUX {
      /*
-@@ -204,6 +247,14 @@ O_ACCMODE :: 0x3;     // Mask for above modes
+@@ -202,6 +245,14 @@ O_ACCMODE :: 0x3;     // Mask for above modes
      AT_REALDEV              :: 0x0200; // Return real device inodes resides on for fstatat(2)
      AT_FDONLY               :: 0x0400; // Use only the fd and Ignore the path for fstatat(2)
      AT_SYMLINK_NOFOLLOW_ANY :: 0x0800; // Path should not contain any symlinks
@@ -149,7 +191,7 @@ index 29cc410..8511a88 100644
  }
  // Constants used for fcntl(2)
  F_DUPFD     :: 0; // duplicate file descriptor
-@@ -242,6 +293,21 @@ F_SETFL     :: 4; // set file status flags
+@@ -240,6 +291,21 @@ F_SETFL     :: 4; // set file status flags
      F_RDLCK         :: 1; // shared or read lock
      F_UNLCK         :: 2; // unlock
      F_WRLCK         :: 3; // exclusive or write lock
@@ -171,7 +213,7 @@ index 29cc410..8511a88 100644
  }
  // Owner permissions.
  S_IRUSR :: 0x100; // Read.
-@@ -370,9 +436,36 @@ using clockid_t :: enum s32 {
+@@ -368,9 +434,36 @@ using clockid_t :: enum s32 {
          CLOCK_PROCESS_CPUTIME_ID   :: 12;
          CLOCK_THREAD_CPUTIME_ID    :: 16;
      }
@@ -209,7 +251,7 @@ index 29cc410..8511a88 100644
      itimerspec :: struct {
          it_interval: timespec; // Interval for periodic timer
          it_value:    timespec; // Initial expiration
-@@ -459,6 +552,12 @@ SEEK_END :: 2;
+@@ -457,6 +550,12 @@ SEEK_END :: 2;
          d_type:    u8;
          d_name:    [255] u8;
      }
@@ -222,15 +264,7 @@ index 29cc410..8511a88 100644
  }
  
  DT_UNKNOWN ::   0; // Some filesystems may always show this value in which case calling stat is required
-@@ -469,51 +568,54 @@ DT_BLK     ::   6;
- DT_REG     ::   8;
- DT_LNK     ::  10;
- DT_SOCK    ::  12;
--DT_WHT     :: 114;
-+DT_WHT     ::  14;
- 
- IFTODT :: inline (mode:    mode_t) -> mode_t { return (mode & 0xF000) >> 12; }
- DTTOIF :: inline (dirtype: mode_t) -> mode_t { return dirtype << 12; }
+@@ -474,44 +573,47 @@ DTTOIF :: inline (dirtype: mode_t) -> mode_t { return dirtype << 12; }
  
  // @header sys/mman.h
  
@@ -309,7 +343,7 @@ index 29cc410..8511a88 100644
  // @header unistd.h
  STDIN_FILENO  :: 0;
  STDOUT_FILENO :: 1;
-@@ -814,6 +916,164 @@ STDERR_FILENO :: 2;
+@@ -812,6 +914,164 @@ STDERR_FILENO :: 2;
          _SC_TIMER_MAX             :: 52;
          _SC_GETPW_R_SIZE_MAX      :: 71;
      }
@@ -474,7 +508,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header errno.h
-@@ -1061,6 +1321,92 @@ STDERR_FILENO :: 2;
+@@ -1059,6 +1319,92 @@ STDERR_FILENO :: 2;
      EOWNERDEAD      :: 105; // Previous owner died
      EQFULL          :: 106; // Interface output queue is full
      ELAST           :: 106;
@@ -567,7 +601,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header signal.h
-@@ -1112,6 +1458,19 @@ SIGWINCH  :: 28; // window size changes
+@@ -1110,6 +1456,19 @@ SIGWINCH  :: 28; // window size changes
      SIGURG   :: 16; // Urgent data is available at a socket.
      SIGUSR1  :: 30; // User-defined signal 1.
      SIGUSR2  :: 31; // User-defined signal 2.
@@ -587,7 +621,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header dlfcn.h
-@@ -1156,6 +1515,17 @@ RTLD_NOW  :: 0x2;
+@@ -1154,6 +1513,17 @@ RTLD_NOW  :: 0x2;
          pw_shell:  *u8;
          pw_expire:  time_t;
      }
@@ -605,7 +639,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header sys/semaphore.h
-@@ -1166,6 +1536,13 @@ RTLD_NOW  :: 0x2;
+@@ -1164,6 +1534,13 @@ RTLD_NOW  :: 0x2;
      }
  } else #if OS == .MACOS {
      sem_t :: s32;
@@ -619,7 +653,7 @@ index 29cc410..8511a88 100644
  }
  
  // @header sys/signal.h
-@@ -1186,6 +1563,13 @@ RTLD_NOW  :: 0x2;
+@@ -1184,6 +1561,13 @@ RTLD_NOW  :: 0x2;
          ss_size:  u64;  // signal stack length
          ss_flags: s32;  // SA_DISABLE and/or SA_ONSTACK
      }
@@ -633,7 +667,7 @@ index 29cc410..8511a88 100644
  }
  sigval_t :: union {
      sival_int: s32;
-@@ -1295,6 +1679,19 @@ sigval_t :: union {
+@@ -1293,6 +1677,19 @@ sigval_t :: union {
          si_band:   s64;      // Band event for SIGPOLL.
          __pad: [7] u64;      // Reserved for Future Use.
      }
@@ -653,7 +687,7 @@ index 29cc410..8511a88 100644
  }
  
  sigaction_t :: struct {
-@@ -1338,6 +1735,10 @@ sigaction_t :: struct {
+@@ -1337,6 +1734,10 @@ sigaction_t :: struct {
      SIG_BLOCK   :: 1; // Block specified signal set.
      SIG_UNBLOCK :: 2; // Unblock specified signal set.
      SIG_SETMASK :: 3; // Set specified signal set.
@@ -664,7 +698,7 @@ index 29cc410..8511a88 100644
  }
  
  SIG_DFL :: cast(*void) 0;
-@@ -1545,6 +1946,8 @@ SIG_IGN :: cast(*void) 1;
+@@ -1544,6 +1945,8 @@ SIG_IGN :: cast(*void) 1;
          st_lspare:  s32;
          st_qspare:  [2] s64;
      }
@@ -673,7 +707,7 @@ index 29cc410..8511a88 100644
  }
  
  #scope_file
-@@ -2618,7 +3021,10 @@ S_ISSOCK :: inline (mode: mode_t) -> bool { return mode & S_IFMT == S_IFSOCK; }
+@@ -2617,7 +3020,10 @@ S_ISSOCK :: inline (mode: mode_t) -> bool { return mode & S_IFMT == S_IFSOCK; }
      }
  }
  
@@ -999,7 +1033,7 @@ index 0000000..91dd39f
 +libsysbase :: #system_library,no_dll "libsysbase";
 +libc :: #system_library,no_dll "libc";
 diff --git a/modules/POSIX/generate.jai b/modules/POSIX/generate.jai
-index 0e7e77a..d7b1e71 100644
+index bf5a1b4..29f3fec 100644
 --- a/modules/POSIX/generate.jai
 +++ b/modules/POSIX/generate.jai
 @@ -18,6 +18,27 @@ TYPE_REPLACEMENTS_TO_MAKE :: Pair.[
@@ -1074,7 +1108,7 @@ index 0e7e77a..d7b1e71 100644
      return success;
  }
  
-@@ -143,9 +175,19 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+@@ -151,9 +183,19 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
  
      if os == .LINUX {
          array_insert_at(*options.libnames, "libpthread.so.0", 0);
@@ -1095,7 +1129,7 @@ index 0e7e77a..d7b1e71 100644
  
      array_add(*options.source_files,
          tprint("%/pthread.h", libc_path),
-@@ -188,6 +230,10 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+@@ -196,6 +238,10 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
          "_pthread_types.h",
          "qos.h",
          "pthread_spis.h",
@@ -1106,7 +1140,7 @@ index 0e7e77a..d7b1e71 100644
      );
      array_add(*options.system_types_to_include,
          "__darwin_id_t",
-@@ -199,7 +245,8 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+@@ -207,7 +253,8 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
  }
  
  generate_resource_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_directory: string) -> bool {
@@ -1116,7 +1150,7 @@ index 0e7e77a..d7b1e71 100644
  
      output_path := tprint("%/resource.jai", bindings_directory);
      options := get_common_options(os, cpu);
-@@ -266,6 +313,13 @@ get_common_options :: (os: Operating_System_Tag, cpu: CPU_Tag) -> Generate_Bindi
+@@ -274,6 +321,13 @@ get_common_options :: (os: Operating_System_Tag, cpu: CPU_Tag) -> Generate_Bindi
                  "-target", target_triple_with_sdk,
                  "--sysroot", paths.sysroot
              );
@@ -1130,7 +1164,7 @@ index 0e7e77a..d7b1e71 100644
      }
  
      options.log_stripped_declarations = false;
-@@ -338,9 +392,25 @@ posix_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration_
+@@ -351,9 +405,25 @@ posix_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration_
      return .RECURSE;
  }
  
@@ -1288,20 +1322,64 @@ index 87f0f1a..df5c211 100644
 + else #if OS == .NN_SWITCH {
 +    #load "bindings/nn_switch/pthread.jai";
 +}
+diff --git a/modules/Process/module.jai b/modules/Process/module.jai
+index b80c2ad..ad4e534 100644
+--- a/modules/Process/module.jai
++++ b/modules/Process/module.jai
+@@ -19,7 +19,7 @@
+     #load "windows.jai";
+ } else #if OS == .PS5 {
+     #load "ps5.jai";
+-} else #if OS_IS_UNIX {
++} else #if OS_IS_UNIX || OS == .NN_SWITCH {
+     #import "Basic";
+     #import "POSIX";
+     #load "posix.jai";
+@@ -193,7 +193,7 @@ Process :: struct {
+     #if OS == .WINDOWS {
+         job_handle: HANDLE = INVALID_HANDLE_VALUE;
+         info: PROCESS_INFORMATION;
+-    } else #if OS == .LINUX || OS == .MACOS {
++    } else #if OS == .LINUX || OS == .MACOS || OS == .NN_SWITCH {
+         pid: pid_t;
+ 
+         #if OS == .MACOS {
+diff --git a/modules/Process/posix.jai b/modules/Process/posix.jai
+index 8441418..eb47503 100644
+--- a/modules/Process/posix.jai
++++ b/modules/Process/posix.jai
+@@ -425,7 +425,7 @@ read_from_process :: (process: *Process, output_buffer: [] u8, error_buffer: []
+     output_bytes: int;
+     error_bytes: int;
+ 
+-    #if OS == .LINUX {
++    #if OS == .LINUX || OS == .NN_SWITCH {
+         poll_fds: [2] pollfd;
+         num_fds := 0;
+         if !process.output.eof {
+@@ -439,7 +439,7 @@ read_from_process :: (process: *Process, output_buffer: [] u8, error_buffer: []
+             num_fds += 1;
+         }
+         poll_timeout_ms := cast(s32) timeout_ms;
+-        num_events := poll(poll_fds.data, cast(u64) num_fds, poll_timeout_ms);
++        num_events := poll(poll_fds.data, xx num_fds, poll_timeout_ms);
+         if num_events == -1 {
+             error_code := System.get_error_value();
+             if error_code == EINTR {
 diff --git a/modules/Runtime_Support.jai b/modules/Runtime_Support.jai
-index f4e7cf9..f6d0b4d 100644
+index e05b28b..7e8cb2f 100644
 --- a/modules/Runtime_Support.jai
 +++ b/modules/Runtime_Support.jai
-@@ -271,7 +271,7 @@ write_string_unsynchronized :: (s: string, to_standard_error := false) #no_conte
-         written: u32;
-         handle := ifx to_standard_error then windows_standard_error else windows_standard_output;
-         status := WriteFile(handle, s.data, cast(u32) s.count, *written, null);
+@@ -301,7 +301,7 @@ write_string_unsynchronized :: (s: string, to_standard_error := false) #no_conte
+                 }
+             }
+         }
 -    } else #if OS_IS_UNIX {
 +    } else #if OS_IS_UNIX || OS == .NN_SWITCH {
          STDOUT_FILENO : s32 : 1;
          STDERR_FILENO : s32 : 2;
          size_t  :: u64;  // So other people, globally, can use this, since it's a common thing. @Cleanup: Probably should be elsewhere?
-@@ -632,6 +632,10 @@ set_initial_data :: (ts: *Temporary_Storage, count: s64, data: *u8) #no_context
+@@ -665,6 +665,10 @@ set_initial_data :: (ts: *Temporary_Storage, count: s64, data: *u8) #no_context
      }
  
      write_string_mutex: _pthread_mutex_t;
@@ -1310,10 +1388,10 @@ index f4e7cf9..f6d0b4d 100644
 +
 +    write :: (fd: s32, buf: *void, count: u64) -> s64 #foreign crt;
  }
- 
- synch_initted: s32 = 0;
+ #if OS == .ANDROID {
+     #scope_module
 diff --git a/modules/Socket/generate.jai b/modules/Socket/generate.jai
-index 480fed4..9864ec3 100644
+index 85d1a58..04013fb 100644
 --- a/modules/Socket/generate.jai
 +++ b/modules/Socket/generate.jai
 @@ -28,6 +28,27 @@ TYPE_PREFIXES_TO_OMIT :: string.[
@@ -1355,28 +1433,30 @@ index 480fed4..9864ec3 100644
          if array_find(args, "-arm64") {
              cpu = .ARM64;
          }
-@@ -86,6 +111,13 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
-                     "--sysroot", paths.sysroot
+@@ -87,6 +112,14 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
                  );
  
-+                array_add(*options.typedef_prefixes_to_unwrap, "__");
+                 array_add(*options.typedef_prefixes_to_unwrap, "__");
 +            case .NN_SWITCH;
 +                output_filename = "generated_nn_switch.jai";
 +                array_add(*options.system_library_paths, tprint("%/libnx/lib", g_devkitpro));
 +                array_add(*options.system_library_paths, tprint("%/devkitA64/aarch64-none-elf/lib", g_devkitpro));
 +                array_add(*system_library_names, "libc", "libnx");
 +                array_add(*extra_clang_arguments, "-nostdinc", "--target=aarch64-nintendo-switch-freestanding", "-march=armv8-a+crc+crypto", "-mtune=cortex-a57");
-                 array_add(*options.typedef_prefixes_to_unwrap, "__");
++                array_add(*options.typedef_prefixes_to_unwrap, "__");
++                options.strip_flags |= .INLINED_FUNCTIONS;
              case;
                  assert(false);
-@@ -95,38 +127,66 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
+         }
+@@ -95,39 +128,66 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
              array_add(*source_files, "winsock2.h", "ws2tcpip.h", "mstcpip.h");
              array_add(*path_fragments_to_treat_as_non_system_paths, "winsock2.h", "ws2def.h", "inaddr.h", "qos.h", "ws2tcpip.h", "ws2ipdef.h", "in6addr.h", "mstcpip.h");
          } else {
 -            libc_path, libc_platform_path := get_libc_paths(os, cpu);
+-            socket_path := ifx target_os == .LINUX then libc_platform_path else libc_path;
 -            // For some reason, we have to use full paths or libclang will not provide _any_ comments for the declaration cursors, for no apparent reason (observed on macOS).
 -            array_add(*source_files,
--                tprint("%/sys/socket.h",  libc_platform_path),
+-                tprint("%/sys/socket.h",  socket_path),
 -                tprint("%/netinet/in.h",  libc_path),
 -                tprint("%/netinet/tcp.h", libc_path),
 -                tprint("%/netdb.h",       libc_path),
@@ -1403,15 +1483,8 @@ index 480fed4..9864ec3 100644
 +                    tprint("%/libnx/include/sys/sockio.h",            g_devkitpro),
 +                    tprint("%/libnx/include/sys/sysctl.h",            g_devkitpro),
                  );
+-            }
 +                array_add(*include_paths, tprint("%/libnx/include", g_devkitpro));
-+
-+                // @TODO: Deal with the fact that the GCC version will change over time
-+                array_add(*system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include", g_devkitpro));
-+                array_add(*system_include_paths, tprint("%/devkitA64/lib/gcc/aarch64-none-elf/13.2.0/include", g_devkitpro));
-+                array_add(*system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include/c++/13.2.0", g_devkitpro));
-             }
-+            else {
-+                libc_path, libc_platform_path := get_libc_paths(os, cpu);
  
 -            if target_os == .MACOS {
 -                array_add(*path_fragments_to_treat_as_non_system_paths, "net/if_var.h", "netinet6/in6.h");
@@ -1425,9 +1498,17 @@ index 480fed4..9864ec3 100644
 -                    // Android
 -                    "in.h",
 -                    "in6.h",
++                // @TODO: Deal with the fact that the GCC version will change over time
++                array_add(*system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include", g_devkitpro));
++                array_add(*system_include_paths, tprint("%/devkitA64/lib/gcc/aarch64-none-elf/13.2.0/include", g_devkitpro));
++                array_add(*system_include_paths, tprint("%/devkitA64/aarch64-none-elf/include/c++/13.2.0", g_devkitpro));
++            }
++            else {
++                libc_path, libc_platform_path := get_libc_paths(os, cpu);
++                socket_path := ifx target_os == .LINUX then libc_platform_path else libc_path;
 +                // For some reason, we have to use full paths or libclang will not provide _any_ comments for the declaration cursors, for no apparent reason (observed on macOS).
 +                array_add(*source_files,
-+                    tprint("%/sys/socket.h",  libc_platform_path),
++                    tprint("%/sys/socket.h",  socket_path),
 +                    tprint("%/netinet/in.h",  libc_path),
 +                    tprint("%/netinet/tcp.h", libc_path),
 +                    tprint("%/netdb.h",       libc_path),
@@ -1461,7 +1542,7 @@ index 480fed4..9864ec3 100644
              array_add(*system_types_to_include,
                  "SOL_SOCKET",
                  "SOMAXCONN",
-@@ -161,7 +221,7 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
+@@ -162,7 +222,7 @@ generate_bindings :: (target_os: Operating_System_Tag = OS, target_cpu: CPU_Tag
              );
          }
  
@@ -1470,7 +1551,7 @@ index 480fed4..9864ec3 100644
          // We can't convert AF_ because these values are used on fields and parameters of different sizes.
          array_add(*generate_enums_from_macros_with_prefixes, "AI_", "MSG_");
          convert_macro_value_to_enum_callback = sock_convert_macro_value_to_enum_callback;
-@@ -273,11 +333,22 @@ socket_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration
+@@ -274,11 +334,22 @@ socket_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration
          type.return_type.hardcoded_jai_string = "OS_Error_Code";
      }
  
@@ -1493,7 +1574,24 @@ index 480fed4..9864ec3 100644
      // Replace integers with their corresponding enum flags, where possible
      if parent_decl && (parent_decl.kind == .FUNCTION || parent_decl.kind == .STRUCT) && decl.kind == .DECLARATION && decl.type.number_flags {
          name := decl.name;
-@@ -348,9 +419,25 @@ get_enum_name :: (argument_name: string, parent_name: string) -> string {
+@@ -306,7 +377,7 @@ socket_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration
+ get_enum_name :: (argument_name: string, parent_name: string) -> string {
+     // Function arguments
+     // Windows:
+-    if parent_name == "socket" || parent_name == "WSASocketA" || parent_name == "WSASocketW" {
++    if parent_name == "socket" || parent_name == "socketpair" || parent_name == "WSASocketA" || parent_name == "WSASocketW" {
+         if argument_name == "type"     return "SOCK";
+         if argument_name == "protocol" return "IPPROTO";
+     }
+@@ -331,6 +402,7 @@ get_enum_name :: (argument_name: string, parent_name: string) -> string {
+     if parent_name == "shutdown" {
+         if argument_name == "__how"    return "SHUT"; // Linux
+         if argument_name == "unknown1" return "SHUT"; // macOS
++        if argument_name == "how"      return "SHUT"; // Switch (devkitPro)
+     }
+     if parent_name == "accept4" {
+         if argument_name == "__flags" return "SOCK"; // Linux. Unfortunately, SOCK is a mixture of enum values and two special flags on Linux. Ugh.
+@@ -349,9 +421,25 @@ get_enum_name :: (argument_name: string, parent_name: string) -> string {
      return "";
  }
  
@@ -1521,10 +1619,10 @@ index 480fed4..9864ec3 100644
  #import "String";
 diff --git a/modules/Socket/generated_nn_switch.jai b/modules/Socket/generated_nn_switch.jai
 new file mode 100644
-index 0000000..bf7af11
+index 0000000..631aa16
 --- /dev/null
 +++ b/modules/Socket/generated_nn_switch.jai
-@@ -0,0 +1,1579 @@
+@@ -0,0 +1,1571 @@
 +//
 +// This file was auto-generated using the following command:
 +//
@@ -2824,14 +2922,6 @@ index 0000000..bf7af11
 +in6addr_any: in6_addr #elsewhere libc;
 +in6addr_loopback: in6_addr #elsewhere libc;
 +
-+htonl :: (hostlong: u32) -> u32 #foreign libc;
-+
-+htons :: (hostshort: u16) -> u16 #foreign libc;
-+
-+ntohl :: (netlong: u32) -> u32 #foreign libc;
-+
-+ntohs :: (netshort: u16) -> u16 #foreign libc;
-+
 +inet_addr :: (cp: *u8) -> in_addr_t #foreign libc;
 +inet_aton :: (cp: *u8, inp: *in_addr) -> s32 #foreign libc;
 +inet_ntoa :: (in: in_addr) -> *u8 #foreign libc;
@@ -3053,10 +3143,10 @@ index 0000000..bf7af11
 +getsockopt :: (sockfd: s32, level: s32, optname: s32, optval: *void, optlen: *socklen_t) -> s32 #foreign libc;
 +listen :: (sockfd: s32, backlog: s32) -> s32 #foreign libc;
 +setsockopt :: (sockfd: s32, level: s32, optname: s32, optval: *void, optlen: socklen_t) -> s32 #foreign libc;
-+shutdown :: (sockfd: s32, how: s32) -> s32 #foreign libc;
++shutdown :: (sockfd: s32, how: SHUT) -> s32 #foreign libc;
 +
 +sockatmark :: (sockfd: s32) -> s32 #foreign libc;
-+socketpair :: (domain: s32, type: s32, protocol: s32, sv: *[2] s32) -> s32 #foreign libc;
++socketpair :: (domain: s32, type: SOCK, protocol: IPPROTO, sv: *[2] s32) -> s32 #foreign libc;
 +
 +recvmsg :: (sockfd: s32, msg: *msghdr, flags: s32) -> ssize_t #foreign libc;
 +sendmsg :: (sockfd: s32, msg: *msghdr, flags: s32) -> ssize_t #foreign libc;
@@ -3105,10 +3195,44 @@ index 0000000..bf7af11
 +libc :: #system_library,no_dll "libc";
 +libnx :: #system_library,no_dll "libnx";
 diff --git a/modules/Socket/module.jai b/modules/Socket/module.jai
-index 9157b61..0618eea 100644
+index 9157b61..ecfe599 100644
 --- a/modules/Socket/module.jai
 +++ b/modules/Socket/module.jai
-@@ -521,6 +521,8 @@ close_and_reset :: (s: *Socket, loc := #caller_location) {
+@@ -254,6 +254,8 @@ bind :: (s: Socket, address: [16] u8, port: u16) -> s32 {
+         server_address.sin6_addr.__u6_addr.__u6_addr8 = address;
+     } else #if OS == .LINUX {
+         server_address.sin6_addr.__in6_u.__u6_addr8 = address;
++    } else #if OS == .NN_SWITCH {
++        server_address.sin6_addr.s6_addr = address;
+     } else {
+         #assert(false, "Unsupported OS");
+     }
+@@ -513,6 +515,24 @@ close_and_reset :: (s: *Socket, loc := #caller_location) {
+     }
+ }
+ 
++#if OS == .NN_SWITCH {
++    htonl :: inline (hostlong: u32) -> u32 {
++        return byte_swap(hostlong);
++    }
++
++    htons :: inline (hostshort: u16) -> u16 {
++        return byte_swap(hostshort);
++    }
++
++    ntohl :: inline (netlong: u32) -> u32 {
++        return byte_swap(netlong);
++    }
++
++    ntohs :: inline (netshort: u16) -> u16 {
++        return byte_swap(netshort);
++    }
++}
++
+ #if OS == .WINDOWS {
+     #load "generated_windows.jai";
+ } else #if OS == .LINUX {
+@@ -521,6 +541,8 @@ close_and_reset :: (s: *Socket, loc := #caller_location) {
      #load "generated_android.jai";
  } else #if OS == .MACOS {
      #load "generated_macos.jai";
@@ -3117,3 +3241,36 @@ index 9157b61..0618eea 100644
  }
  
  #scope_module
+@@ -534,4 +556,5 @@ close_and_reset :: (s: *Socket, loc := #caller_location) {
+ #scope_file
+ 
+ #import "Basic";
++#import "Bit_Operations";
+ System :: #import "System";
+diff --git a/modules/System.jai b/modules/System.jai
+index 6b640d4..247724f 100644
+--- a/modules/System.jai
++++ b/modules/System.jai
+@@ -181,7 +181,7 @@ Processor_Query_Type :: enum u8 {
+         description := get_error_string(error_code);
+         return error_code, description;
+     }
+-} else #if OS_IS_UNIX && OS != .PS5 {
++} else #if (OS_IS_UNIX && OS != .PS5) || OS == .NN_SWITCH {
+     #scope_file
+     #import "POSIX";
+     Process :: #import "Process";
+@@ -499,6 +499,13 @@ Processor_Query_Type :: enum u8 {
+         }
+         return proc_count;
+     }
++} else #if OS == .NN_SWITCH {
++    get_username :: () -> string, success:bool {
++        return "", false;
++    }
++    get_machinename :: () -> string {
++        return "";
++    }
+ }
+ 
+ #scope_file
